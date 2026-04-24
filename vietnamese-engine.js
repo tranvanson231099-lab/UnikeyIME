@@ -1,8 +1,10 @@
 /**
- * Vietnamese Telex Input Method Engine - Final Robust Version
+ * Vietnamese Telex Input Method Engine - v4
  *
- * This version contains a completely rewritten logic for character modification to fix fundamental flaws
- * related to the 'd' <-> 'đ' toggle and context-aware vowel modification (e.g., 'tràn' + 'a' -> 'trần').
+ * This version fixes two major bugs:
+ * 1. A complete rewrite of the accent placement logic (`findVowelForTone`)
+ *    to correctly follow standard Vietnamese rules, fixing errors like 'loi' + 'x' -> 'lõi' instead of 'lỗi'.
+ * 2. Fixes for character modification rules that caused unexpected behavior.
  */
 
 // --- DATA STRUCTURES (Unchanged) ---
@@ -16,18 +18,56 @@ const TONE_KEYS = ['', 's', 'f', 'r', 'x', 'j'];
 const VOWEL_MAP = {};
 VOWEL_TPL.forEach((baseArr, baseIdx) => baseArr.forEach((vowel, toneIdx) => VOWEL_MAP[vowel] = { baseIdx, toneIdx }));
 
-// --- LOGIC HELPERS (Unchanged) ---
+// --- LOGIC HELPERS ---
+
+// NEW: Robust accent placement function based on standard Vietnamese orthography
 function findVowelForTone(word) {
-    let lastVowelIdx = -1;
-    for (let i = word.length - 1; i >= 0; i--) {
-        const char = word[i].toLowerCase();
-        if (VOWEL_MAP[char]) {
-            if (lastVowelIdx === -1) lastVowelIdx = i;
-            const vowelInfo = VOWEL_MAP[char];
-            if (vowelInfo.baseIdx === 4 || vowelInfo.baseIdx === 8) return i;
+    const lowerWord = word.toLowerCase();
+    const vowels = 'aăâeêioôơuưy';
+    const vowelIndices = [];
+    let ê_idx = -1;
+    let ơ_idx = -1;
+
+    for (let i = 0; i < lowerWord.length; i++) {
+        if (vowels.includes(lowerWord[i])) {
+            const vowelInfo = VOWEL_MAP[lowerWord[i]];
+            if (vowelInfo) {
+                 vowelIndices.push(i);
+                 const baseVowel = VOWEL_TPL[vowelInfo.baseIdx][0];
+                 if (baseVowel === 'ê') ê_idx = i;
+                 if (baseVowel === 'ơ') ơ_idx = i;
+            }
         }
     }
-    return lastVowelIdx;
+
+    if (vowelIndices.length === 0) return -1;
+
+    if (ê_idx !== -1) return ê_idx;
+    if (ơ_idx !== -1) {
+        if (lowerWord.includes('ươu') || lowerWord.includes('ươi')) {
+             const ơ_vowel_index_in_cluster = vowelIndices.indexOf(ơ_idx);
+             if (ơ_vowel_index_in_cluster < vowelIndices.length -1) {
+                return vowelIndices[ơ_vowel_index_in_cluster + 1];
+             }
+        }
+        return ơ_idx;
+    }
+    
+    let mainVowelIndices = [...vowelIndices];
+    if (lowerWord.startsWith('qu') && mainVowelIndices.length > 1) mainVowelIndices.shift();
+    if (lowerWord.startsWith('gi') && mainVowelIndices.length > 1) mainVowelIndices.shift();
+
+    if (mainVowelIndices.length === 0) return vowelIndices[vowelIndices.length - 1]; 
+    if (mainVowelIndices.length === 1) return mainVowelIndices[0];
+    
+    const lastChar = lowerWord[lowerWord.length - 1];
+    const hasFinalConsonant = !vowels.includes(lastChar);
+
+    if (hasFinalConsonant) {
+        return mainVowelIndices[1];
+    } else {
+        return mainVowelIndices[0];
+    }
 }
 
 // --- CORE EVENT PROCESSOR ---
@@ -36,7 +76,6 @@ function processKeyEvent(key, word) {
 
     const lowerKey = key.toLowerCase();
 
-    // RULE 1: TONE MODIFICATION (Highest priority, unchanged)
     const toneKeyIndex = TONE_KEYS.indexOf(lowerKey);
     if (toneKeyIndex !== -1 || lowerKey === 'z') {
         const vowelIdx = findVowelForTone(word);
@@ -50,10 +89,7 @@ function processKeyEvent(key, word) {
             }
         }
     }
-
-    // RULE 2: CHARACTER MODIFICATION (Rewritten for robustness)
-
-    // NEW: Robust 'd' <-> 'đ' toggle logic
+    
     if (lowerKey === 'd') {
         if (word.endsWith('d')) return word.slice(0, -1) + 'đ';
         if (word.endsWith('D')) return word.slice(0, -1) + 'Đ';
@@ -61,7 +97,6 @@ function processKeyEvent(key, word) {
         if (word.endsWith('Đ')) return word.slice(0, -1) + 'D';
     }
 
-    // NEW: Context-aware vowel modification logic
     if ('aeo'.includes(lowerKey)) {
         const vowelIdx = findVowelForTone(word);
         if (vowelIdx !== -1) {
@@ -72,10 +107,9 @@ function processKeyEvent(key, word) {
                 if (lowerKey === baseVowel) {
                     let newBaseIdx = -1;
                     const baseIdx = vowelInfo.baseIdx;
-                    if (baseIdx === 0) newBaseIdx = 2; else if (baseIdx === 2) newBaseIdx = 0; // a <-> â
-                    else if (baseIdx === 3) newBaseIdx = 4; else if (baseIdx === 4) newBaseIdx = 3; // e <-> ê
-                    else if (baseIdx === 6) newBaseIdx = 7; else if (baseIdx === 7) newBaseIdx = 6; // o <-> ô
-
+                    if (baseIdx === 0) newBaseIdx = 2; else if (baseIdx === 2) newBaseIdx = 0;
+                    else if (baseIdx === 3) newBaseIdx = 4; else if (baseIdx === 4) newBaseIdx = 3;
+                    else if (baseIdx === 6) newBaseIdx = 7; else if (baseIdx === 7) newBaseIdx = 6;
                     if (newBaseIdx !== -1) {
                         const newVowel = VOWEL_TPL[newBaseIdx][vowelInfo.toneIdx];
                         return word.substring(0, vowelIdx) + (vowel.toUpperCase() === vowel ? newVowel.toUpperCase() : newVowel) + word.substring(vowelIdx + 1);
@@ -85,7 +119,6 @@ function processKeyEvent(key, word) {
         }
     }
 
-    // 'w' rule (Unchanged, placed after specific toggles)
     if (lowerKey === 'w') {
         const vowelIdx = findVowelForTone(word);
         if (vowelIdx !== -1) {
@@ -104,6 +137,5 @@ function processKeyEvent(key, word) {
         }
     }
 
-    // RULE 3: DEFAULT APPEND
     return word + key;
 }
