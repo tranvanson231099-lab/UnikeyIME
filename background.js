@@ -1,7 +1,7 @@
 /**
- * Unikey IME Background Script - v8 (Definitive Stability)
+ * Unikey IME Background Script - v9 (Stable Release)
  *
- * This version works in tandem with the rewritten engine (v9) to ensure maximum
+ * This version works in tandem with the rewritten engine (v10) to ensure maximum
  * stability. The key event listener is simplified and made more robust to prevent
  * the race conditions and state corruption that caused the IME to freeze. It now
  * reliably handles every key press, passing it to the stable engine.
@@ -16,9 +16,19 @@ let currentTypingStyle = 'Telex'; // Default to Telex
 // --- Settings Management ---
 
 function loadTypingStyle() {
-    chrome.storage.sync.get('typingStyle', (data) => {
-        currentTypingStyle = data.typingStyle || 'Telex';
-    });
+    try {
+        chrome.storage.sync.get('typingStyle', (data) => {
+            if (chrome.runtime.lastError) {
+                console.error("Error loading typing style:", chrome.runtime.lastError.message);
+                currentTypingStyle = 'Telex';
+                return;
+            }
+            currentTypingStyle = data.typingStyle || 'Telex';
+        });
+    } catch (e) {
+        console.error("Exception in loadTypingStyle:", e);
+        currentTypingStyle = 'Telex';
+    }
 }
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -70,8 +80,7 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
 
     const key = keyData.key;
 
-    // Prioritize non-printable control keys
-    if (key === 'Escape' || key === 'Delete') {
+    if (key === 'Escape') {
         if (composition) {
             cancelComposition();
             return true; // Key was handled
@@ -93,15 +102,13 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
 
     if (key === 'Backspace') {
         if (!composition) return false;
-        const newComposition = processKeyEvent('backspace', composition, currentTypingStyle);
+        const newComposition = processKeyEvent(key, composition, currentTypingStyle);
         update(newComposition);
         return true;
     }
 
     // The most critical part: handle all single, printable characters.
-    // This was a source of previous bugs.
     if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
-        // Pass the character to the engine and update the composition.
         const newComposition = processKeyEvent(key, composition, currentTypingStyle);
         update(newComposition);
         return true; // We *always* handle printable keys to maintain state.
