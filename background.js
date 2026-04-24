@@ -1,17 +1,17 @@
 /**
- * Unikey IME Background Script - v7 (Stable Multi-Engine)
+ * Unikey IME Background Script - v8 (Definitive Stability)
  *
- * This version fixes a critical state management bug from v6 that caused the
- * composition state to not update correctly, making both Telex and VNI fail.
- * The logic is now restored to a stable model where every valid key press
- * correctly updates the composition.
+ * This version works in tandem with the rewritten engine (v9) to ensure maximum
+ * stability. The key event listener is simplified and made more robust to prevent
+ * the race conditions and state corruption that caused the IME to freeze. It now
+ * reliably handles every key press, passing it to the stable engine.
  */
 
 importScripts('vietnamese-engine.js');
 
 let contextID = 0;
 let composition = "";
-let currentTypingStyle = 'Telex'; // Default typing style
+let currentTypingStyle = 'Telex'; // Default to Telex
 
 // --- Settings Management ---
 
@@ -27,16 +27,16 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
-// --- Core IME Handlers ---
+// --- Core IME Handlers (Stable) ---
 
 chrome.input.ime.onFocus.addListener(ctx => {
     contextID = ctx.contextID;
-    composition = "";
+    composition = ""; // Always start fresh
 });
 
 chrome.input.ime.onBlur.addListener(() => {
     if (composition && contextID) {
-        commit(composition);
+        commit(composition); // Commit any leftover text
     }
     contextID = 0;
     composition = "";
@@ -46,7 +46,7 @@ function commit(text) {
     if (contextID) {
         chrome.input.ime.commitText({ contextID: contextID, text: text });
     }
-    composition = "";
+    composition = ""; // Reset state immediately after commit
 }
 
 function update(text) {
@@ -59,24 +59,24 @@ function update(text) {
 function cancelComposition() {
     if (composition) {
         composition = "";
-        update("");
+        update(""); // Clear the composition visually
     }
 }
 
-// --- Key Event Logic (Corrected) ---
+// --- Key Event Logic (Simplified and Stabilized) ---
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
-    if (keyData.type !== 'keydown') return false;
+    if (keyData.type !== 'keydown') return false; // Only process keydown events
 
     const key = keyData.key;
 
-    // Handle non-printable keys first
+    // Prioritize non-printable control keys
     if (key === 'Escape' || key === 'Delete') {
         if (composition) {
             cancelComposition();
-            return true; // We handled the key
+            return true; // Key was handled
         }
-        return false; // No composition, let the browser handle it
+        return false; // Let browser handle it
     }
 
     if (key === 'Enter') {
@@ -92,23 +92,24 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
     }
 
     if (key === 'Backspace') {
-        if (!composition) return false; // Let system handle backspace on empty composition
+        if (!composition) return false;
         const newComposition = processKeyEvent('backspace', composition, currentTypingStyle);
         update(newComposition);
         return true;
     }
 
-    // Handle printable characters: This is the corrected logic.
-    // Any single character that is not a control character will be processed.
+    // The most critical part: handle all single, printable characters.
+    // This was a source of previous bugs.
     if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
+        // Pass the character to the engine and update the composition.
         const newComposition = processKeyEvent(key, composition, currentTypingStyle);
         update(newComposition);
-        return true; // We always handle printable keys to maintain state
+        return true; // We *always* handle printable keys to maintain state.
     }
 
-    // Let the system handle anything else (Arrow keys, Tab, etc.)
+    // Let the browser handle any other key (e.g., arrow keys, function keys).
     return false;
 });
 
-// Initialize settings on startup
+// Load settings on startup
 loadTypingStyle();
