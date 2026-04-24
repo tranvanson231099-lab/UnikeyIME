@@ -1,21 +1,25 @@
 {
-  "name": "My Vietnamese IME",
+  "name": "Unikey IME",
   "version": "1.0",
   "manifest_version": 3,
+  "description": "Vietnamese Input Method (Telex, VNI) for ChromeOS.",
   "permissions": [
     "input",
     "storage"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
   "input_components": [
     {
-      "name": "My Vietnamese IME",
+      "name": "Unikey IME",
       "type": "ime",
-      "id": "vietnamese_ime",
-      "description": "My Vietnamese IME for ChromeOS",
+      "id": "unikey_ime",
+      "description": "Vietnamese IME for ChromeOS",
       "language": "vi",
       "layouts": ["us"]
     }
