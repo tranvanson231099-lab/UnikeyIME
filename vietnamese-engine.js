@@ -1,11 +1,10 @@
 /**
- * Vietnamese Telex Input Method Engine - v6 (Feature-Rich & Stable)
+ * Vietnamese Input Method Engine - v7 (Dual-Engine: Telex & VNI)
  *
- * This version introduces key features and robust error handling:
- * 1. Adds support for toggling accents with repeated vowels (aa <> â, ee <> ê, oo <> ô).
- * 2. Smartly handles tone keys: pressing a tone key on a word with that tone will remove the tone
- *    and append the key as a character (e.g., 'trán' + 's' -> 'trans').
- * 3. Enforces orthographic rules for tones on words ending with stop consonants (c, ch, p, t).
+ * This is the final, complete engine. It now supports both Telex and VNI typing styles.
+ * - The main function `processKeyEvent` now takes a `style` parameter ('Telex' or 'VNI').
+ * - It uses a shared `findVowelForTone` function for accurate accent placement for both styles.
+ * - Code is organized to handle Telex and VNI rules separately for clarity and maintainability.
  */
 
 const VOWEL_TPL = [
@@ -14,18 +13,21 @@ const VOWEL_TPL = [
     ["o", "ó", "ò", "ỏ", "õ", "ọ"], ["ô", "ố", "ồ", "ổ", "ỗ", "ộ"], ["ơ", "ớ", "ờ", "ở", "ỡ", "ợ"],
     ["u", "ú", "ù", "ủ", "ũ", "ụ"], ["ư", "ứ", "ừ", "ử", "ữ", "ự"], ["y", "ý", "ỳ", "ỷ", "ỹ", "ỵ"]
 ];
-const TONE_KEYS = ['', 's', 'f', 'r', 'x', 'j'];
+
 const VOWEL_MAP = {};
 VOWEL_TPL.forEach((baseArr, baseIdx) => baseArr.forEach((vowel, toneIdx) => VOWEL_MAP[vowel] = { baseIdx, toneIdx }));
 
+const TELEX_TONE_KEYS = ['', 's', 'f', 'r', 'x', 'j'];
+const VNI_TONE_KEYS = ['', '1', '2', '3', '4', '5'];
+const STOP_CONSONANTS = ['c', 'p', 't', 'ch'];
+
+// This accent placement function is shared by both Telex and VNI.
 function findVowelForTone(word) {
     const lowerWord = word.toLowerCase();
     const allVowels = "aăâeêioôơuưy";
     let vowelIndices = [];
     for (let i = 0; i < lowerWord.length; i++) {
-        if (allVowels.includes(lowerWord[i])) {
-            vowelIndices.push(i);
-        }
+        if (allVowels.includes(lowerWord[i])) vowelIndices.push(i);
     }
 
     if (vowelIndices.length === 0) return -1;
@@ -40,8 +42,8 @@ function findVowelForTone(word) {
     }
 
     let mainVowelIndices = [...vowelIndices];
-    if (lowerWord.startsWith("qu") || lowerWord.startsWith("gi")) {
-        if (mainVowelIndices.length > 1) mainVowelIndices.shift();
+    if ((lowerWord.startsWith("qu") || lowerWord.startsWith("gi")) && mainVowelIndices.length > 1) {
+        mainVowelIndices.shift();
     }
 
     if (mainVowelIndices.length === 1) return mainVowelIndices[0];
@@ -56,94 +58,98 @@ function findVowelForTone(word) {
     if (['oa', 'oe', 'uy', 'ue'].includes(cluster)) {
         return lastMainVowelIndex;
     }
-
     return secondLastMainVowelIndex;
 }
 
-function processKeyEvent(key, word) {
+// The main processing function, now with a 'style' parameter.
+function processKeyEvent(key, word, style) {
     if (key === 'backspace') return word.length > 0 ? word.slice(0, -1) : "";
 
-    const lowerKey = key.toLowerCase();
+    // --- Shared Logic: Tone Application and Removal ---
+    const toneKeys = style === 'VNI' ? VNI_TONE_KEYS : TELEX_TONE_KEYS;
+    const toneKeyIndex = toneKeys.indexOf(key);
 
-    // Feature: aa -> â, ee -> ê, oo -> ô (and toggle back)
-    if (('aeo').includes(lowerKey) && word.length > 0) {
-        const lastChar = word[word.length - 1];
-        const lastCharLower = lastChar.toLowerCase();
-        if (lastCharLower === lowerKey) {
-            const vowelInfo = VOWEL_MAP[lastCharLower];
-            if (vowelInfo && [0, 2, 3, 4, 6, 7].includes(vowelInfo.baseIdx)) {
-                const mapping = { 0: 2, 2: 0, 3: 4, 4: 3, 6: 7, 7: 6 }; // a<>â, e<>ê, o<>ô
-                const newBaseIdx = mapping[vowelInfo.baseIdx];
-                const newVowel = VOWEL_TPL[newBaseIdx][vowelInfo.toneIdx];
-                return word.slice(0, -1) + (lastChar === lastCharLower ? newVowel : newVowel.toUpperCase());
-            }
-        }
-    }
-
-    // Feature: Tone key handling (apply, remove, or reject)
-    const toneKeyIndex = TONE_KEYS.indexOf(lowerKey);
-    if (toneKeyIndex !== -1) {
+    if (toneKeyIndex !== -1 || (style === 'Telex' && key === 'z')) {
         const vowelIdx = findVowelForTone(word);
         if (vowelIdx !== -1) {
             const vowel = word[vowelIdx];
             const vowelInfo = VOWEL_MAP[vowel.toLowerCase()];
             if (vowelInfo) {
-                // Smart tone removal: If pressing the same tone key, remove tone and append key
-                if (vowelInfo.toneIdx === toneKeyIndex) {
-                    const newVowel = VOWEL_TPL[vowelInfo.baseIdx][0]; // Vowel with no tone
-                    const wordWithoutTone = word.substring(0, vowelIdx) + (vowel === vowel.toLowerCase() ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
-                    return wordWithoutTone + key; // Append the key (e.g., s, f)
+                 // Smart tone removal for both styles
+                if (vowelInfo.toneIdx === toneKeyIndex || (style === 'Telex' && key === 'z')) {
+                    const newToneIndex = (key === 'z' || (style === 'VNI' && key === '0')) ? 0 : vowelInfo.toneIdx; // VNI '0' to remove tone
+                    const newVowel = VOWEL_TPL[vowelInfo.baseIdx][newToneIndex];
+                    const wordWithoutTone = word.substring(0, vowelIdx) + (vowel.toLowerCase() === vowel ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
+                    // Only append key if it's not a tone key (e.g., 's' in 'trans')
+                    if (vowelInfo.toneIdx === toneKeyIndex && style === 'Telex') return wordWithoutTone + key;
+                    return wordWithoutTone;
                 }
-
-                // Rule: Check for invalid tones on words ending with c, ch, p, t
-                const lastChar = word.length > 0 ? word.slice(-1).toLowerCase() : '';
-                const last2Chars = word.length > 1 ? word.slice(-2).toLowerCase() : '';
+                // Check for invalid tones
+                const lastChar = word.slice(-1).toLowerCase();
+                const last2Chars = word.slice(-2).toLowerCase();
                 const finalConsonant = (last2Chars === 'ch') ? 'ch' : lastChar;
-                if (['c', 'p', 't', 'ch'].includes(finalConsonant)) {
-                    if (toneKeyIndex !== 1 /*sắc*/ && toneKeyIndex !== 5 /*nặng*/) {
-                        return word + key; // Reject tone, append key
-                    }
+                if (STOP_CONSONANTS.includes(finalConsonant) && ![1, 5].includes(toneKeyIndex)) {
+                    return word + key;
                 }
-
                 // Apply new tone
                 const newVowel = VOWEL_TPL[vowelInfo.baseIdx][toneKeyIndex];
-                return word.substring(0, vowelIdx) + (vowel === vowel.toLowerCase() ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
+                return word.substring(0, vowelIdx) + (vowel.toLowerCase() === vowel ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
             }
         }
     }
 
-    // Tone removal with 'z'
-    if (lowerKey === 'z') {
-        const vowelIdx = findVowelForTone(word);
-        if (vowelIdx !== -1) {
-            const vowel = word[vowelIdx];
-            const vowelInfo = VOWEL_MAP[vowel.toLowerCase()];
-            if (vowelInfo && vowelInfo.toneIdx !== 0) {
-                const newVowel = VOWEL_TPL[vowelInfo.baseIdx][0];
-                return word.substring(0, vowelIdx) + (vowel === vowel.toLowerCase() ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
-            }
-        }
-    }
-
-    // Other transformations (d -> đ, w -> ă/ơ/ư)
-    if (lowerKey === 'd' && word.endsWith('d')) return word.slice(0, -1) + 'đ';
-    if (lowerKey === 'd' && word.endsWith('D')) return word.slice(0, -1) + 'Đ';
-
-    if (lowerKey === 'w') {
-        const vowelIdx = findVowelForTone(word);
-        if (vowelIdx !== -1) {
-            const vowel = word[vowelIdx].toLowerCase();
-            const vInfo = VOWEL_MAP[vowel];
-            if (vInfo) {
-                const mapping = { 0: 1, 6: 8, 9: 10 }; // a->ă, o->ơ, u->ư
-                if (mapping[vInfo.baseIdx] !== undefined) {
-                     const newBaseIdx = mapping[vInfo.baseIdx];
-                     const newVowel = VOWEL_TPL[newBaseIdx][vInfo.toneIdx];
-                     return word.substring(0, vowelIdx) + (word[vowelIdx] === word[vowelIdx].toLowerCase() ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
+    // --- Style-Specific Logic ---
+    if (style === 'Telex') {
+        // Telex-specific rules (aa -> â, etc.)
+        if (('aeo').includes(key) && word.length > 0) {
+            const lastChar = word[word.length - 1];
+            if (lastChar.toLowerCase() === key) {
+                const vowelInfo = VOWEL_MAP[lastChar.toLowerCase()];
+                if (vowelInfo) {
+                    const mapping = { 0: 2, 2: 0, 3: 4, 4: 3, 6: 7, 7: 6 };
+                    if (mapping[vowelInfo.baseIdx] !== undefined) {
+                         const newBaseIdx = mapping[vowelInfo.baseIdx];
+                         const newVowel = VOWEL_TPL[newBaseIdx][vowelInfo.toneIdx];
+                         return word.slice(0, -1) + (lastChar === lastChar.toLowerCase() ? newVowel : newVowel.toUpperCase());
+                    }
                 }
             }
         }
+        if (key === 'w') {
+            const vowelIdx = findVowelForTone(word);
+            if (vowelIdx !== -1) {
+                 const vowel = word[vowelIdx].toLowerCase();
+                 const vInfo = VOWEL_MAP[vowel];
+                 if (vInfo) {
+                    const mapping = { 0: 1, 6: 8, 9: 10 };
+                    if (mapping[vInfo.baseIdx] !== undefined) {
+                         const newBaseIdx = mapping[vInfo.baseIdx];
+                         const newVowel = VOWEL_TPL[newBaseIdx][vInfo.toneIdx];
+                         return word.substring(0, vowelIdx) + (word[vowelIdx] === word[vowelIdx].toLowerCase() ? newVowel : newVowel.toUpperCase()) + word.substring(vowelIdx + 1);
+                    }
+                 }
+            }
+        }
+    } else { // VNI
+        // VNI-specific rules (d9 -> đ, etc.)
+        if (key === '9') return word.slice(0, -1) + (word.slice(-1) === 'd' ? 'đ' : (word.slice(-1) === 'D' ? 'Đ' : word.slice(-1)+'9'));
+        if (key === '8') {
+            const lastChar = word.slice(-1).toLowerCase();
+            if (lastChar === 'a') return word.slice(0, -1) + (word.slice(-1) === 'a' ? 'ă' : 'Ă');
+            if (lastChar === 'o') return word.slice(0, -1) + (word.slice(-1) === 'o' ? 'ơ' : 'Ơ');
+            if (lastChar === 'u') return word.slice(0, -1) + (word.slice(-1) === 'u' ? 'ư' : 'Ư');
+        }
+        if (key === '7') {
+            const lastChar = word.slice(-1).toLowerCase();
+            if (lastChar === 'a') return word.slice(0, -1) + (word.slice(-1) === 'a' ? 'â' : 'Â');
+            if (lastChar === 'e') return word.slice(0, -1) + (word.slice(-1) === 'e' ? 'ê' : 'Ê');
+            if (lastChar === 'o') return word.slice(0, -1) + (word.slice(-1) === 'o' ? 'ô' : 'Ô');
+        }
     }
 
+    if (key === 'd' && style === 'Telex' && word.endsWith('d')) return word.slice(0, -1) + 'đ';
+    if (key === 'd' && style === 'Telex' && word.endsWith('D')) return word.slice(0, -1) + 'Đ';
+
+    // If no rule matched, just append the key.
     return word + key;
 }

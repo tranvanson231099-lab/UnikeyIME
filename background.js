@@ -1,43 +1,56 @@
 /**
- * Unikey IME Background Script - v5 (Rock-Solid Stability)
+ * Unikey IME Background Script - v6 (Multi-Engine Support)
  *
- * This version maintains the simple, predictable state management from v4,
- * which is crucial for preventing race conditions and bugs like the "jumping text"
- * issue reported during corrections. The logic ensures that committing text (e.g., with Spacebar)
- * is a clean, atomic operation.
+ * This version introduces multi-engine capability. It now does the following:
+ * 1. Loads the user-defined typing style (Telex or VNI) from `chrome.storage`.
+ * 2. Listens for changes to the settings and updates the typing style on the fly.
+ * 3. Passes the current typing style to the vietnamese-engine for processing.
  */
 
 importScripts('vietnamese-engine.js');
 
 let contextID = 0;
 let composition = "";
+let currentTypingStyle = 'Telex'; // Default typing style
 
-// --- Core Handlers ---
+// --- Settings Management ---
+
+// Load the typing style from storage when the script starts
+function loadTypingStyle() {
+    chrome.storage.sync.get('typingStyle', (data) => {
+        currentTypingStyle = data.typingStyle || 'Telex';
+    });
+}
+
+// Listen for changes in settings (e.g., from the options page)
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'sync' && changes.typingStyle) {
+        currentTypingStyle = changes.typingStyle.newValue || 'Telex';
+    }
+});
+
+// --- Core Handlers (Unchanged) ---
 
 chrome.input.ime.onFocus.addListener(ctx => {
     contextID = ctx.contextID;
-    composition = ""; // Always start fresh on focus
+    composition = "";
 });
 
 chrome.input.ime.onBlur.addListener(() => {
     if (composition && contextID) {
-        commit(composition); // Commit any leftover text when focus is lost
+        commit(composition);
     }
     contextID = 0;
     composition = "";
 });
 
-// Commits text and RESETS the composition. This is the key to stability.
 function commit(text) {
     if (contextID) {
-        // The core action: send the final text to the input field.
         chrome.input.ime.commitText({ contextID: contextID, text: text });
     }
-    // Crucially, reset the composition state immediately after committing.
     composition = "";
 }
 
-// Updates the text currently being composed (the text that is underlined).
 function update(text) {
     composition = text;
     if (contextID) {
@@ -45,11 +58,10 @@ function update(text) {
     }
 }
 
-// A dedicated function to cancel the current composition.
 function cancelComposition() {
     if (composition) {
         composition = "";
-        update(""); // Visibly clear the underlined text.
+        update("");
     }
 }
 
@@ -60,41 +72,40 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
 
     const key = keyData.key;
 
-    // Escape/Delete: Cancel composition if active, otherwise let system handle it.
     if (key === 'Escape' || key === 'Delete') {
         if (composition) {
             cancelComposition();
-            return true; // We've handled this key.
+            return true;
         }
-        return false; // Let system handle the key (e.g., deleting text).
+        return false;
     }
 
     if (key === 'Enter') {
-        if (!composition) return false; 
+        if (!composition) return false;
         commit(composition);
         return true;
     }
 
     if (keyData.code === 'Space') {
         if (!composition) return false;
-        // The commit function handles the text insertion and state reset.
         commit(composition + ' ');
         return true;
     }
-
-    if (key === 'Backspace') {
-        if (!composition) return false; // Let system handle if no composition.
-        const newComposition = processKeyEvent('backspace', composition);
+    
+    // Pass the key and the *current typing style* to the engine
+    const newComposition = processKeyEvent(key, composition, currentTypingStyle);
+    
+    // If the engine returns a different result, update the composition.
+    // If it returns the same, it means the key was not handled, so we let the system handle it.
+    if (newComposition !== composition + key) {
         update(newComposition);
         return true;
     }
 
-    // Handle all other printable characters.
-    if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
-        const newComposition = processKeyEvent(key, composition);
-        update(newComposition);
-        return true;
-    }
-
-    return false; // Let the system handle all other keys.
+    // The engine did not handle the key, let the browser do its thing.
+    // This is important for keys like Backspace when the composition is empty.
+    return false;
 });
+
+// Initialize settings on startup
+loadTypingStyle();
