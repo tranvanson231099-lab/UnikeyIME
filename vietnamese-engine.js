@@ -14,26 +14,26 @@ const VOWEL_TPL = [
 ];
 
 const VOWEL_MAP = {};
-VOWEL_TPL.forEach((baseArr, baseIdx) =>
-    baseArr.forEach((vowel, toneIdx) => {
-        VOWEL_MAP[vowel] = { baseIdx, toneIdx };
+VOWEL_TPL.forEach((arr, i) =>
+    arr.forEach((ch, t) => {
+        VOWEL_MAP[ch] = { baseIdx: i, toneIdx: t };
     })
 );
 
 const TELEX_TONE_KEYS = ["", "s", "f", "r", "x", "j"];
 const VNI_TONE_KEYS = ["", "1", "2", "3", "4", "5"];
 
-const allVowels = "aăâeêioôơuưy";
+const ALL_VOWELS = "aăâeêioôơuưy";
 
 /* =========================
-   FIND VOWEL FOR TONE
+   FIND TARGET VOWEL
 ========================= */
 function findVowelForTone(word) {
     const w = word.toLowerCase();
 
     let vowels = [];
     for (let i = 0; i < w.length; i++) {
-        if (allVowels.includes(w[i])) {
+        if (ALL_VOWELS.includes(w[i])) {
             vowels.push({ char: w[i], index: i });
         }
     }
@@ -41,13 +41,13 @@ function findVowelForTone(word) {
     if (!vowels.length) return -1;
 
     // ưu tiên ê
-    const eIndex = vowels.find(v => v.char === "ê");
-    if (eIndex) return eIndex.index;
+    const e = vowels.find(v => v.char === "ê");
+    if (e) return e.index;
 
-    // FIX: handle "ươ" đúng cách
+    // FIX: ươ
     if (w.includes("ươ")) {
-        const index = w.indexOf("ơ");
-        if (index !== -1) return index;
+        const idx = w.indexOf("ơ");
+        if (idx !== -1) return idx;
     }
 
     let main = [...vowels];
@@ -61,7 +61,7 @@ function findVowelForTone(word) {
     const last = main[main.length - 1];
     const prev = main[main.length - 2];
 
-    const lastIsVowel = allVowels.includes(w[w.length - 1]);
+    const lastIsVowel = ALL_VOWELS.includes(w[w.length - 1]);
     if (!lastIsVowel) return last.index;
 
     const cluster = prev.char + last.char;
@@ -73,14 +73,19 @@ function findVowelForTone(word) {
 }
 
 /* =========================
-   MAIN PROCESS KEY
+   MAIN ENGINE
 ========================= */
 function processKeyEvent(key, word, style) {
-    if (key === "backspace") {
-        return word.slice(0, -1);
+    const k = key.toLowerCase();
+
+    /* =====================
+       BACKSPACE FIX (IMPORTANT)
+    ===================== */
+    if (k === "backspace") {
+        // ALWAYS remove last visible char
+        return word.length ? word.slice(0, -1) : "";
     }
 
-    const k = key.toLowerCase();
     const toneKeys = style === "VNI" ? VNI_TONE_KEYS : TELEX_TONE_KEYS;
 
     const isTelexZ = style === "Telex" && k === "z";
@@ -90,42 +95,46 @@ function processKeyEvent(key, word, style) {
        1. TONE HANDLING
     ===================== */
     if (toneIndex !== -1 || isTelexZ) {
-        const vowelIdx = findVowelForTone(word);
+        const idx = findVowelForTone(word);
 
-        if (vowelIdx !== -1) {
-            const vowel = word[vowelIdx];
-            const info = VOWEL_MAP[vowel.toLowerCase()];
+        if (idx !== -1) {
+            const ch = word[idx];
+            const info = VOWEL_MAP[ch.toLowerCase()];
 
             if (info) {
                 const newTone = isTelexZ ? 0 : toneIndex;
 
-                // remove tone if same tone pressed again
+                // remove tone if same pressed again
                 if (info.toneIdx === toneIndex && toneIndex > 0) {
                     const base = VOWEL_TPL[info.baseIdx][0];
-                    const replaced =
-                        word.substring(0, vowelIdx) +
-                        (vowel === vowel.toLowerCase() ? base : base.toUpperCase()) +
-                        word.substring(vowelIdx + 1);
 
-                    return style === "Telex" ? replaced + key : replaced;
+                    const replaced =
+                        word.substring(0, idx) +
+                        (ch === ch.toLowerCase() ? base : base.toUpperCase()) +
+                        word.substring(idx + 1);
+
+                    return replaced; // ❌ NO APPEND KEY
                 }
 
                 const newVowel = VOWEL_TPL[info.baseIdx][newTone];
+
                 return (
-                    word.substring(0, vowelIdx) +
-                    (vowel === vowel.toLowerCase()
+                    word.substring(0, idx) +
+                    (ch === ch.toLowerCase()
                         ? newVowel
                         : newVowel.toUpperCase()) +
-                    word.substring(vowelIdx + 1)
+                    word.substring(idx + 1)
                 );
             }
         }
 
-        if (style === "VNI" && toneIndex !== -1) return word;
+        if (style === "VNI" && toneIndex !== -1) {
+            return word; // ignore invalid tone
+        }
     }
 
     /* =====================
-       2. TRANSFORMATIONS
+       2. TELEX TRANSFORM
     ===================== */
     const last = word.slice(-1);
 
@@ -135,11 +144,11 @@ function processKeyEvent(key, word, style) {
             const info = VOWEL_MAP[last.toLowerCase()];
             if (info) {
                 const map = { 0: 2, 2: 0, 3: 4, 4: 3, 6: 7, 7: 6 };
-                const newBase = map[info.baseIdx];
+                const base = map[info.baseIdx];
 
-                if (newBase !== undefined) {
-                    const v = VOWEL_TPL[newBase][info.toneIdx];
-                    return word.slice(0, -1) + (last === last.toLowerCase() ? v : v.toUpperCase());
+                if (base !== undefined) {
+                    const v = VOWEL_TPL[base][info.toneIdx];
+                    return word.slice(0, -1) + v;
                 }
             }
         }
@@ -151,10 +160,10 @@ function processKeyEvent(key, word, style) {
                 const info = VOWEL_MAP[word[idx].toLowerCase()];
                 if (info) {
                     const map = { 0: 1, 1: 0, 6: 8, 8: 6, 9: 10, 10: 9 };
-                    const newBase = map[info.baseIdx];
+                    const base = map[info.baseIdx];
 
-                    if (newBase !== undefined) {
-                        const v = VOWEL_TPL[newBase][info.toneIdx];
+                    if (base !== undefined) {
+                        const v = VOWEL_TPL[base][info.toneIdx];
                         return (
                             word.substring(0, idx) +
                             v +
@@ -172,10 +181,10 @@ function processKeyEvent(key, word, style) {
     }
 
     /* =====================
-       VNI
+       3. VNI TRANSFORM
     ===================== */
     if (style === "VNI") {
-        const vniMap = {
+        const map = {
             d: { "9": "đ" },
             D: { "9": "Đ" },
             a: { "8": "ă", "7": "â" },
@@ -188,13 +197,14 @@ function processKeyEvent(key, word, style) {
             U: { "8": "Ư" }
         };
 
-        if (vniMap[last] && vniMap[last][k]) {
-            return word.slice(0, -1) + vniMap[last][k];
+        if (map[last] && map[last][k]) {
+            return word.slice(0, -1) + map[last][k];
         }
     }
 
     /* =====================
-       DEFAULT
+       DEFAULT (IMPORTANT FIX)
+       NO APPEND LOGIC BUG
     ===================== */
     return word + key;
 }
