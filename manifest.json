@@ -23,11 +23,5 @@
       "language": "vi",
       "layouts": ["us"]
     }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [ "engine.wasm" ],
-      "matches": [ "<all_urls>" ]
-    }
   ]
 }

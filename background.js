@@ -1,98 +1,69 @@
 importScripts('vietnamese-engine.js');
 
-const engineID = "unikey_ime";
 let contextID;
-let currentWord = '';
-let typingMethod = 'telex'; // Default typing method
-let accentPlacement = 'new'; // Default accent placement
+let composition = { text: '', cursor: 0 };
+let settings = { typingStyle: 'telex', accentPlacement: 'new' };
 
-// Load the user's preferred settings from storage
+// Load settings from storage
 function loadSettings() {
-    chrome.storage.sync.get(['typingStyle', 'accentPlacement'], (data) => {
-        if (data.typingStyle) {
-            typingMethod = data.typingStyle.toLowerCase();
-        }
-        if (data.accentPlacement) {
-            accentPlacement = data.accentPlacement;
-        }
-    });
+  chrome.storage.sync.get(['typingStyle', 'accentPlacement'], (data) => {
+    settings.typingStyle = data.typingStyle || 'telex';
+    settings.accentPlacement = data.accentPlacement || 'new';
+  });
 }
 
-// Listen for changes in user settings
-chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (changes.typingStyle) {
-        typingMethod = changes.typingStyle.newValue.toLowerCase();
-    }
-    if (changes.accentPlacement) {
-        accentPlacement = changes.accentPlacement.newValue;
-    }
+// Update settings on change
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.typingStyle) settings.typingStyle = changes.typingStyle.newValue;
+  if (changes.accentPlacement) settings.accentPlacement = changes.accentPlacement.newValue;
 });
 
-chrome.input.ime.onFocus.addListener((context) => {
-  contextID = context.contextID;
-});
+function commitComposition() {
+  if (!contextID || !composition.text) return;
+  chrome.input.ime.commitText({ contextID, text: composition.text });
+  composition = { text: '', cursor: 0 };
+}
 
-chrome.input.ime.onBlur.addListener(() => {
-  if (currentWord) {
-    chrome.input.ime.commitText({
-      contextID: contextID,
-      text: currentWord
-    });
+function updateComposition(newText) {
+  composition.text = newText;
+  composition.cursor = newText.length;
+  if (contextID) {
+    chrome.input.ime.setComposition({ contextID, text: newText, cursor: newText.length });
   }
-  currentWord = '';
-  contextID = 0;
+}
+
+chrome.input.ime.onFocus.addListener(context => {
+  contextID = context.contextID;
+  loadSettings();
+});
+
+chrome.input.ime.onBlur.addListener(id => {
+  if (id === contextID) {
+    commitComposition();
+    contextID = null;
+  }
 });
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
-  if (keyData.type === 'keydown' && !keyData.ctrlKey && !keyData.altKey) {
-    if (keyData.key.length > 1) {
-      if (currentWord) {
-        chrome.input.ime.commitText({
-          contextID: contextID,
-          text: currentWord
-        });
-        currentWord = '';
-      }
-      return false;
-    }
+  if (keyData.type !== 'keydown' || keyData.ctrlKey || keyData.altKey) return false;
 
-    if (/[\s.,!?;:]/.test(keyData.key)) {
-      if (currentWord) {
-        chrome.input.ime.commitText({
-          contextID: contextID,
-          text: currentWord + keyData.key
-        });
-        currentWord = '';
-      } else {
-        chrome.input.ime.commitText({
-          contextID: contextID,
-          text: keyData.key
-        });
-      }
-      return true;
-    }
-
-    const newWord = processKeyEvent(keyData.key, currentWord, typingMethod, accentPlacement);
-
-    if (newWord !== currentWord) {
-      chrome.input.ime.setComposition({
-        contextID: contextID,
-        text: newWord,
-        cursor: newWord.length
-      });
-      currentWord = newWord;
-    } else {
-        chrome.input.ime.commitText({
-            contextID: contextID,
-            text: currentWord + keyData.key
-        });
-        currentWord = '';
-    }
-    return true;
+  // Special keys commit the current composition
+  if (keyData.key.length > 1) { // Enter, Backspace, Arrow keys etc.
+    commitComposition();
+    return false; // Let the system handle it
   }
 
-  return false;
-});
+  // Space and punctuation commit the composition + the character
+  if (/[\s.,!?;:]/.test(keyData.key)) {
+    commitComposition();
+    return false; // Let system handle space/punctuation
+  }
 
-// Load settings when the extension starts
+  // Process the key with the engine
+  const newText = processKeyEvent(keyData.key, composition.text, settings.typingStyle, settings.accentPlacement);
+  updateComposition(newText);
+  return true; // We handled the event
+}, ["physical"])
+
+// Initial load
 loadSettings();
