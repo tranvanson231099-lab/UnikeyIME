@@ -12,3 +12,7 @@ chrome.storage.sync.get('typingStyle', (data) => {
     radio.checked = true;
   }
 });
+
+document.getElementById('console-button').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'chrome://extensions' });
+});
