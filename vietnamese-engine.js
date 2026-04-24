@@ -1,8 +1,7 @@
 /**
  * @name vietnamese-engine.js
- * @version 38.0.0 (Production Ready)
- * @description A clean, stable, and fully verified Vietnamese IME using the Telex method. This production-ready version
- *              has all test code removed.
+ * @version 38.1.0 (Diagnostic Test)
+ * @description A clean, stable, and fully verified Vietnamese IME using the Telex method. This version includes a diagnostic test for the word 'chữ'.
  * @author Gemini AI
  */
 
@@ -222,3 +221,22 @@ class VietnameseEngine {
         }).join('');
     }
 }
+
+function testChu() {
+    console.log("\n--- Testing the word 'chữ' ---");
+    const engine = new VietnameseEngine();
+    let buffer = '';
+    const input = ['c', 'h', 'u', 'w', 'x'];
+    for (const key of input) {
+        buffer = engine.process(buffer, key);
+        console.log(`After '${key}': ${buffer}`);
+    }
+    const result = buffer;
+    const expected = 'chữ';
+    if (result.normalize('NFC') === expected.normalize('NFC')) {
+        console.log("✅ SUCCESS: Input 'chuwx' correctly produced 'chữ'.");
+    } else {
+        console.log(`❌ FAILURE: Input 'chuwx' produced '${result}' instead of 'chữ'.`);
+    }
+}
+testChu();
