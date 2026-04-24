@@ -6,11 +6,13 @@ function loadSettings() {
   chrome.storage.sync.get([
     'typingStyle',
     'smartTyping',
-    'vietnameseEnabled'
+    'vietnameseEnabled',
+    'accentPlacement'
   ], (data) => {
     // Main settings
     mainSettingsForm.elements['typing-style'].value = data.typingStyle || 'Telex';
     mainSettingsForm.elements['smart-typing'].checked = data.smartTyping || false;
+    mainSettingsForm.elements['accent-placement'].value = data.accentPlacement || 'new';
 
     // Control panel
     controlPanelForm.querySelector('input[name="enabled"]').checked = data.vietnameseEnabled === undefined ? true : data.vietnameseEnabled;
@@ -21,11 +23,13 @@ function loadSettings() {
 function saveSettings() {
   const typingStyle = mainSettingsForm.elements['typing-style'].value;
   const smartTyping = mainSettingsForm.elements['smart-typing'].checked;
+  const accentPlacement = mainSettingsForm.elements['accent-placement'].value;
   const vietnameseEnabled = controlPanelForm.querySelector('input[name="enabled"]').checked;
 
   chrome.storage.sync.set({
     typingStyle,
     smartTyping,
+    accentPlacement,
     vietnameseEnabled
   });
 }

@@ -1,0 +1,14 @@
+{
+    "vowels": {
+      "monophthongs": ["a", "ă", "â", "e", "ê", "i", "y", "o", "ô", "ơ", "u", "ư"],
+      "diphthongs": ["ia", "iê", "ua", "uô", "ưa", "ươ"]
+    },
+    "consonants": {
+      "initial_consonants": [
+        "b", "c", "k", "q", "d", "đ", "g", "gh", "h", "l", "m", "n",
+        "p", "r", "s", "t", "v", "x", "ch", "tr", "gi", "kh",
+        "ng", "ngh", "nh", "ph", "qu", "th"
+      ],
+      "final_consonants": ["c", "ch", "m", "n", "ng", "nh", "p", "t"]
+    }
+  }

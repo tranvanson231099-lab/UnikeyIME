@@ -1,0 +1,38 @@
+1. Quy tắc kết hợp Âm tiết (Phonotactics)
+Tiếng Việt có cấu trúc cố định: [Phụ âm đầu] + [Nguyên âm] + [Phụ âm cuối] + [Thanh điệu].
+
+Phụ âm đầu: Có thể không có (như từ "anh", "ông").
+
+Nguyên âm: Bắt buộc phải có (nguyên âm đơn, đôi hoặc ba).
+
+Phụ âm cuối: Có thể không có (như từ "ba", "về").
+
+Vị trí dấu thanh: Luôn nằm trên hoặc dưới nguyên âm.
+
+2. Quy tắc đặt Dấu thanh (Accent Placement)
+Đây là phần khó nhất khi lập trình. Có 2 cách đặt dấu (Cũ và Mới), nhưng đa số hiện nay dùng Quy tắc mới (Chuẩn Bộ Giáo dục):
+
+Từ có 1 nguyên âm: Dấu đặt ngay trên nguyên âm đó (ví dụ: má, ngủ).
+
+Từ có nguyên âm đôi + Phụ âm cuối: Dấu đặt ở nguyên âm thứ hai (ví dụ: tuyến, muốn, rượu).
+
+Từ có nguyên âm đôi nhưng KHÔNG có phụ âm cuối: Dấu đặt ở nguyên âm thứ nhất (ví dụ: múa, của, phía).
+
+Trường hợp đặc biệt ua, oe, uy, oa: Dấu thường đặt ở nguyên âm thứ hai (ví dụ: hòa, nhòe, thủy, quả).
+
+3. Quy tắc Chính tả (Orthography)
+Bộ gõ thông minh cần tự động sửa lỗi hoặc ngăn chặn các kết hợp sai:
+
+K/G/Ng với nguyên âm: * k, gh, ngh chỉ đi với i, e, ê.
+
+c, g, ng chỉ đi với a, o, ô, ơ, u, ư.
+
+Phụ âm cuối và Dấu thanh:
+
+Các từ kết thúc bằng phụ âm chặn (c, ch, p, t) thì chỉ có thể đi với dấu Sắc hoặc Nặng (ví dụ: mát, mạc, không thể có màt).
+
+Y và I:
+
+Đứng một mình: i (ví dụ: it), y (ví dụ: y tế).
+
+Sau phụ âm: i (ví dụ: mì), trừ các trường hợp như quy, huy, thuy.
