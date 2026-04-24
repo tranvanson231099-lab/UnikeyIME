@@ -1,19 +1,41 @@
-const form = document.querySelector('form');
+const mainSettingsForm = document.forms.mainSettings;
+const controlPanelForm = document.querySelector('.settings-group legend:first-of-type').parentElement;
 
-form.addEventListener('change', (event) => {
-  const typingStyle = event.target.value;
-  chrome.storage.sync.set({ typingStyle });
-});
+// Load settings and update the form
+function loadSettings() {
+  chrome.storage.sync.get([
+    'typingStyle',
+    'smartTyping',
+    'vietnameseEnabled'
+  ], (data) => {
+    // Main settings
+    mainSettingsForm.elements['typing-style'].value = data.typingStyle || 'Telex';
+    mainSettingsForm.elements['smart-typing'].checked = data.smartTyping || false;
 
-chrome.storage.sync.get('typingStyle', (data) => {
-  const typingStyle = data.typingStyle || 'Telex'; // Default to Telex
-  const radio = form.querySelector(`input[value="${typingStyle}"]`);
-  if (radio) {
-    radio.checked = true;
-  }
-});
+    // Control panel
+    controlPanelForm.querySelector('input[name="enabled"]').checked = data.vietnameseEnabled === undefined ? true : data.vietnameseEnabled;
+  });
+}
+
+// Save settings when the form changes
+function saveSettings() {
+  const typingStyle = mainSettingsForm.elements['typing-style'].value;
+  const smartTyping = mainSettingsForm.elements['smart-typing'].checked;
+  const vietnameseEnabled = controlPanelForm.querySelector('input[name="enabled"]').checked;
+
+  chrome.storage.sync.set({
+    typingStyle,
+    smartTyping,
+    vietnameseEnabled
+  });
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', loadSettings);
+mainSettingsForm.addEventListener('change', saveSettings);
+controlPanelForm.addEventListener('change', saveSettings);
 
 document.getElementById('console-link').addEventListener('click', (event) => {
-  event.preventDefault(); // Prevent the default link behavior
+  event.preventDefault();
   chrome.tabs.create({ url: 'chrome://extensions' });
 });

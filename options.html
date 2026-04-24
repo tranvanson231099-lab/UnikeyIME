@@ -1,22 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>My Vietnamese IME Options</title>
+  <title>Unikey Settings</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #f0f0f0;
+      width: 400px;
+      padding: 10px;
+    }
+    h1 {
+      font-size: 1.2em;
+      text-align: center;
+      color: #333;
+    }
+    .settings-group {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .settings-group legend {
+      font-weight: bold;
+      color: #005a9e;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
 </head>
 <body>
-  <h1>My Vietnamese IME Options</h1>
-  <form>
+  <h1>Unikey Settings</h1>
+
+  <div class="settings-group">
+    <legend>Bảng điều khiển (Control Panel)</legend>
     <label>
-      <input type="radio" name="typing-style" value="Telex" checked>
-      Telex
+      <input type="checkbox" name="enabled" checked>
+      Bật/Tắt gõ tiếng Việt (Enable/Disable Vietnamese)
     </label>
-    <br>
-    <label>
-      <input type="radio" name="typing-style" value="VNI">
-      VNI
-    </label>
+  </div>
+
+  <form name="mainSettings">
+    <div class="settings-group">
+      <legend>Kiểu gõ (Typing Method)</legend>
+      <label>
+        <input type="radio" name="typing-style" value="Telex" checked>
+        Telex
+      </label>
+      <label>
+        <input type="radio" name="typing-style" value="VNI">
+        VNI
+      </label>
+    </div>
+
+    <div class="settings-group">
+      <legend>Tùy chọn khác (Other Options)</legend>
+      <label>
+        <input type="checkbox" name="smart-typing">
+        Gõ thông minh (Smart Typing)
+      </label>
+    </div>
   </form>
-  <a href="#" id="console-link">Quản lý tiện ích (Manage Extension)</a>
+
+  <div class="footer">
+    <a href="#" id="console-link">Quản lý tiện ích (Manage Extension)</a>
+  </div>
+
   <script src="options.js"></script>
 </body>
 </html>
