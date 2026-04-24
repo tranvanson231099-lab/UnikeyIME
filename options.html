@@ -5,10 +5,6 @@
   <title>Unikey Settings</title>
   <link rel="stylesheet" href="local-fonts.css">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
     body {
       font-family: 'Roboto', sans-serif;
       background-color: #f7f9fc;
@@ -16,103 +12,47 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      margin: 0;
+      min-height: 100vh;
     }
-    .container {
-      width: 420px;
-      padding: 20px;
+    .container { width: 420px; padding: 20px; }
+    h1 { font-size: 1.5em; text-align: center; color: #1a73e8; font-weight: 500; margin-bottom: 25px; }
+    .settings-group { background-color: #fff; border: 1px solid #dfe1e5; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .settings-group legend { font-weight: 700; font-size: 1.1em; color: #1a73e8; padding-bottom: 10px; width: 100%; border-bottom: 1px solid #dfe1e5; margin-bottom: 15px; }
+    label { display: flex; align-items: center; margin-bottom: 12px; cursor: pointer; font-size: 1em; }
+    input[type="radio"], input[type="checkbox"] { margin-right: 10px; accent-color: #1a73e8; }
+    .footer { text-align: center; margin-top: 25px; font-size: 0.9em; }
+    #save-button { 
+      background-color: #1a73e8; color: white; border: none; padding: 10px 20px; 
+      border-radius: 5px; cursor: pointer; font-size: 1em; margin-bottom: 15px;
     }
-    h1 {
-      font-size: 1.5em;
-      text-align: center;
-      color: #1a73e8;
-      font-weight: 500;
-      margin-bottom: 25px;
-    }
-    .settings-group {
-      background-color: #fff;
-      border: 1px solid #dfe1e5;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    }
-    .settings-group legend {
-      font-weight: 700;
-      font-size: 1.1em;
-      color: #1a73e8;
-      padding-bottom: 10px;
-      width: 100%;
-      border-bottom: 1px solid #dfe1e5;
-      margin-bottom: 15px;
-    }
-    label {
-      display: flex;
-      align-items: center;
-      margin-bottom: 12px;
-      cursor: pointer;
-      font-size: 1em;
-    }
-    input[type="radio"], input[type="checkbox"] {
-      margin-right: 10px;
-      accent-color: #1a73e8;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 25px;
-      font-size: 0.9em;
-    }
-    .footer a {
-      color: #1a73e8;
-      text-decoration: none;
-    }
-    .footer a:hover {
-      text-decoration: underline;
-    }
+    #save-button:hover { background-color: #185abc; }
+    #status-message { color: green; height: 1.2em; }
+    .footer a { color: #1a73e8; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Cài đặt Unikey (Unikey Settings)</h1>
 
-    <div class="settings-group">
-      <legend>Bảng điều khiển (Control Panel)</legend>
-      <label>
-        <input type="checkbox" name="enabled" checked>
-        Bật/Tắt gõ tiếng Việt (Enable/Disable Vietnamese)
-      </label>
-    </div>
-
     <form name="mainSettings">
       <div class="settings-group">
         <legend>Kiểu gõ (Typing Method)</legend>
-        <label>
-          <input type="radio" name="typing-style" value="Telex" checked>
-          Telex
-        </label>
-        <label>
-          <input type="radio" name="typing-style" value="VNI">
-          VNI
-        </label>
+        <label><input type="radio" name="typing-style" value="Telex" checked> Telex</label>
+        <label><input type="radio" name="typing-style" value="VNI"> VNI</label>
       </div>
 
       <div class="settings-group">
-        <legend>Tùy chọn khác (Other Options)</legend>
-        <label>
-          <input type="checkbox" name="smart-typing">
-          Gõ thông minh (Smart Typing)
-        </label>
-        <label>
-          <input type="radio" name="accent-placement" value="new" checked>
-          Quy tắc mới (Ví dụ: "hòa", "túy")
-        </label>
-        <label>
-          <input type="radio" name="accent-placement" value="old">
-          Quy tắc cũ (Ví dụ: "hoà", "tuý")
-        </label>
+        <legend>Quy tắc đặt dấu (Accent Placement Rule)</legend>
+        <label><input type="radio" name="accent-placement" value="new" checked> Quy tắc mới (Ví dụ: "hòa", "túy")</label>
+        <label><input type="radio" name="accent-placement" value="old"> Quy tắc cũ (Ví dụ: "hoà", "tuý")</label>
       </div>
     </form>
 
     <div class="footer">
+      <button id="save-button">Lưu Cài đặt (Save Settings)</button>
+      <p id="status-message"></p>
       <a href="#" id="console-link">Quản lý tiện ích (Manage Extension)</a>
     </div>
   </div>
