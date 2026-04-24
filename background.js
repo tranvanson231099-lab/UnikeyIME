@@ -1,62 +1,60 @@
 importScripts('vietnamese-engine.js');
 
 let contextID = 0;
-let compositionText = "";
+let composition = "";
 
-chrome.input.ime.onFocus.addListener((context) => {
-    contextID = context.contextID;
-});
+// --- Core Handlers ---
 
-chrome.input.ime.onBlur.addListener((context) => {
-    if (contextID === context.contextID && compositionText) {
-        chrome.input.ime.commitText({ contextID: contextID, text: compositionText });
+chrome.input.ime.onFocus.addListener(ctx => { contextID = ctx.contextID; });
+chrome.input.ime.onBlur.addListener(() => { contextID = 0; });
+
+function commit(text) {
+    if (contextID) {
+        chrome.input.ime.commitText({ contextID: contextID, text: text });
     }
-    compositionText = "";
-    contextID = 0;
-});
+    composition = "";
+}
+
+function update(text) {
+    composition = text;
+    if (contextID) {
+        chrome.input.ime.setComposition({ contextID: contextID, text: text, cursor: text.length });
+    }
+}
+
+// --- Key Event Logic ---
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
-    if (keyData.type !== 'keydown') {
-        return false;
-    }
+    if (keyData.type !== 'keydown') return false;
 
-    // On space or enter, commit the text and let the system handle the key.
-    if (keyData.code === 'Space' || keyData.code === 'Enter') {
-        if (compositionText) {
-            chrome.input.ime.commitText({ contextID: contextID, text: compositionText });
-            compositionText = "";
-        }
-        return false; 
-    }
+    const key = keyData.key;
 
-    // On backspace
-    if (keyData.code === 'Backspace') {
-        if (compositionText) {
-            compositionText = compositionText.slice(0, -1);
-            chrome.input.ime.setComposition({ contextID: contextID, text: compositionText, cursor: compositionText.length });
-            return true; // We handled it.
-        }
-        return false; // Let system handle it.
-    }
-
-    // For single, printable characters.
-    if (keyData.key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
-        const newText = processKeyEvent(keyData.key, compositionText);
-        
-        // If the engine changed the text, update the composition.
-        if (newText !== (compositionText + keyData.key)) {
-            chrome.input.ime.setComposition({ contextID: contextID, text: newText, cursor: newText.length });
-            compositionText = newText;
-        } else {
-            // Otherwise, commit the old text and start a new composition.
-            if (compositionText) {
-                chrome.input.ime.commitText({ contextID: contextID, text: compositionText });
-            }
-            compositionText = keyData.key;
-            chrome.input.ime.setComposition({ contextID: contextID, text: compositionText, cursor: 1 });
-        }
+    if (key === 'Enter') {
+        if (!composition) return false; // Let system handle if no composition
+        commit(composition); 
         return true;
     }
-    
-    return false;
+
+    if (keyData.code === 'Space') {
+        if (!composition) return false;
+        commit(composition + ' ');
+        return true;
+    }
+
+    if (key === 'Backspace') {
+        if (!composition) return false;
+        // Let the engine handle backspace
+        const newComposition = processKeyEvent('backspace', composition);
+        update(newComposition);
+        return true;
+    }
+
+    // For printable characters
+    if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
+        const newComposition = processKeyEvent(key, composition);
+        update(newComposition);
+        return true;
+    }
+
+    return false; // Let the system handle other keys
 });
