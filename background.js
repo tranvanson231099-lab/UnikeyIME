@@ -1,9 +1,10 @@
 /**
- * Unikey IME Background Script - v3 (Stable)
+ * Unikey IME Background Script - v5 (Rock-Solid Stability)
  *
- * This version removes the experimental "last word reactivation" feature
- * to restore the standard, reliable behavior of the Backspace and Delete keys.
- * The logic is now simpler and more predictable.
+ * This version maintains the simple, predictable state management from v4,
+ * which is crucial for preventing race conditions and bugs like the "jumping text"
+ * issue reported during corrections. The logic ensures that committing text (e.g., with Spacebar)
+ * is a clean, atomic operation.
  */
 
 importScripts('vietnamese-engine.js');
@@ -13,31 +14,30 @@ let composition = "";
 
 // --- Core Handlers ---
 
-// Fired when a text input field is focused.
 chrome.input.ime.onFocus.addListener(ctx => {
     contextID = ctx.contextID;
-    composition = ""; // Reset composition on focus
+    composition = ""; // Always start fresh on focus
 });
 
-// Fired when a text input field loses focus.
 chrome.input.ime.onBlur.addListener(() => {
-    // Commit any pending composition when focus is lost.
     if (composition && contextID) {
-        chrome.input.ime.commitText({ contextID: contextID, text: composition });
+        commit(composition); // Commit any leftover text when focus is lost
     }
     contextID = 0;
     composition = "";
 });
 
-// Commits the given text to the active text field.
+// Commits text and RESETS the composition. This is the key to stability.
 function commit(text) {
     if (contextID) {
+        // The core action: send the final text to the input field.
         chrome.input.ime.commitText({ contextID: contextID, text: text });
     }
-    composition = ""; // Reset composition after every commit.
+    // Crucially, reset the composition state immediately after committing.
+    composition = "";
 }
 
-// Updates the text currently being composed.
+// Updates the text currently being composed (the text that is underlined).
 function update(text) {
     composition = text;
     if (contextID) {
@@ -45,48 +45,56 @@ function update(text) {
     }
 }
 
+// A dedicated function to cancel the current composition.
+function cancelComposition() {
+    if (composition) {
+        composition = "";
+        update(""); // Visibly clear the underlined text.
+    }
+}
+
 // --- Key Event Logic ---
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
-    // Only handle keydown events.
     if (keyData.type !== 'keydown') return false;
 
     const key = keyData.key;
 
-    // Enter key: Commit the current composition if it exists.
+    // Escape/Delete: Cancel composition if active, otherwise let system handle it.
+    if (key === 'Escape' || key === 'Delete') {
+        if (composition) {
+            cancelComposition();
+            return true; // We've handled this key.
+        }
+        return false; // Let system handle the key (e.g., deleting text).
+    }
+
     if (key === 'Enter') {
-        if (!composition) return false; // Let the system handle Enter if there's nothing to commit.
-        commit(composition); 
+        if (!composition) return false; 
+        commit(composition);
         return true;
     }
 
-    // Space key: Commit the current composition and add a space.
     if (keyData.code === 'Space') {
-        if (!composition) return false; // Let the system handle Space if there's nothing to commit.
+        if (!composition) return false;
+        // The commit function handles the text insertion and state reset.
         commit(composition + ' ');
         return true;
     }
 
-    // Backspace key: This is the simplified, corrected logic.
     if (key === 'Backspace') {
-        if (!composition) {
-            // If there is no active composition, do nothing.
-            // Let the system handle the backspace (deleting the character before the cursor).
-            return false; 
-        }
-        // If there is a composition, let the engine handle the backspace.
+        if (!composition) return false; // Let system handle if no composition.
         const newComposition = processKeyEvent('backspace', composition);
         update(newComposition);
         return true;
     }
 
-    // All other printable characters are processed by the engine.
+    // Handle all other printable characters.
     if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
         const newComposition = processKeyEvent(key, composition);
         update(newComposition);
         return true;
     }
 
-    // Let the system handle all other keys (Arrow keys, Delete, Tab, etc.)
-    return false; 
+    return false; // Let the system handle all other keys.
 });
