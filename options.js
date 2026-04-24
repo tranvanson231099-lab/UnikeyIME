@@ -13,6 +13,7 @@ chrome.storage.sync.get('typingStyle', (data) => {
   }
 });
 
-document.getElementById('console-button').addEventListener('click', () => {
+document.getElementById('console-link').addEventListener('click', (event) => {
+  event.preventDefault(); // Prevent the default link behavior
   chrome.tabs.create({ url: 'chrome://extensions' });
 });
