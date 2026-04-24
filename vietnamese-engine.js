@@ -6,88 +6,75 @@ const CHAR_TO_BASE = {
 const BASE_TO_CHAR = {
   'a': {'s':'á','f':'à','r':'ả','x':'ã','j':'ạ'},'ă': {'s':'ắ','f':'ằ','r':'ẳ','x':'ẵ','j':'ặ'},'â': {'s':'ấ','f':'ầ','r':'ẩ','x':'ẫ','j':'ậ'},'e': {'s':'é','f':'è','r':'ẻ','x':'ẽ','j':'ẹ'},'ê': {'s':'ế','f':'ề','r':'ể','x':'ễ','j':'ệ'},'i': {'s':'í','f':'ì','r':'ỉ','x':'ĩ','j':'ị'},'o': {'s':'ó','f':'ò','r':'ỏ','x':'õ','j':'ọ'},'ô': {'s':'ố','f':'ồ','r':'ổ','x':'ỗ','j':'ộ'},'ơ': {'s':'ớ','f':'ờ','r':'ở','x':'ỡ','j':'ợ'},'u': {'s':'ú','f':'ù','r':'ủ','x':'ũ','j':'ụ'},'ư': {'s':'ứ','f':'ừ','r':'ử','x':'ữ','j':'ự'},'y': {'s':'ý','f':'ỳ','r':'ỷ','x':'ỹ','j':'ỵ'}
 };
-const TELEX_MAP = { 'aa': 'â', 'ee': 'ê', 'oo': 'ô', 'dd': 'đ', 'aw': 'ă', 'ow': 'ơ', 'uw': 'ư' };
-const TONE_KEYS = { 's':1, 'f':2, 'r':3, 'x':4, 'j':5, 'z':0 };
-const VNI_TONES = {'1':1, '2':2, '3':3, '4':4, '5':5, '0':0 };
 
-function getBaseChar(c) { return CHAR_TO_BASE[c] || c; }
+const TELEX_TRANSFORM = { 'aa': 'â', 'ee': 'ê', 'oo': 'ô', 'dd': 'đ', 'aw': 'ă', 'ow': 'ơ', 'uw': 'ư' };
+const TELEX_TONES = { 's':'sắc', 'f':'huyền', 'r':'hỏi', 'x':'ngã', 'j':'nặng', 'z':'reset' };
+const VNI_TRANSFORM = {'a8':'ă','a6':'â','d9':'đ','e6':'ê','o6':'ô','o7':'ơ','u7':'ư'};
+const VNI_TONES = { '1':'sắc', '2':'huyền', '3':'hỏi', '4':'ngã', '5':'nặng', '0':'reset' };
 
-function findVowelForTone(word) {
-    const VOWEL_REGEX = /[aăâeêiyoôơuư]/i;
+function getBaseChar(c) {
+    const base = CHAR_TO_BASE[c];
+    return base ? base : c;
+}
+
+function findVowelToApplyTone(word) {
     let lastVowelIndex = -1;
-    let secondToLastVowelIndex = -1;
-
     for (let i = word.length - 1; i >= 0; i--) {
-        if (VOWEL_REGEX.test(word[i])) {
-            if (lastVowelIndex === -1) lastVowelIndex = i;
-            else {
-                secondToLastVowelIndex = i;
-                break;
-            }
+        if (VOWELS.includes(word[i])) {
+            lastVowelIndex = i;
+            break;
         }
     }
-
-    if (lastVowelIndex === -1) return -1;
-
-    // Rule: nguyên âm đôi + phụ âm cuối -> dấu ở nguyên âm thứ hai (tuyến, muốn)
-    if (secondToLastVowelIndex !== -1 && lastVowelIndex < word.length - 1) {
-        return lastVowelIndex;
-    }
-
-    // Rule: nguyên âm đôi không có phụ âm cuối -> dấu ở nguyên âm thứ nhất (múa, của)
-    const pair = word.substring(secondToLastVowelIndex, lastVowelIndex + 1).toLowerCase();
-    if (secondToLastVowelIndex !== -1 && (pair === 'oa' || pair === 'oe' || pair === 'uy')) {
-        return secondToLastVowelIndex;
-    }
-    
     return lastVowelIndex;
 }
 
-function processKeyEvent(key, word, method = 'telex', accentRule = 'new') {
+function processKeyEvent(key, word, method = 'telex') {
     const lowerKey = key.toLowerCase();
 
-    // 1. Handle TELEX character transformation
-    if (method === 'telex') {
-        const lastChar = word.slice(-1).toLowerCase();
+    // STEP 1: Character Transformation (aa -> â, sonw -> sơn)
+    const transform_map = method === 'telex' ? TELEX_TRANSFORM : VNI_TRANSFORM;
+    if (word.length > 0) {
+        const lastChar = getBaseChar(word.slice(-1)).toLowerCase();
         const combo = lastChar + lowerKey;
-        if (TELEX_MAP[combo]) {
-            const newChar = TELEX_MAP[combo];
+        if (transform_map[combo]) {
+            const newChar = transform_map[combo];
             const isUpper = word.slice(-1) === word.slice(-1).toUpperCase();
             return word.slice(0, -1) + (isUpper ? newChar.toUpperCase() : newChar);
         }
-        if (lowerKey === 'w') {
-            for (let i = word.length - 1; i >= 0; i--) {
-                const char = word[i];
-                if (getBaseChar(char).toLowerCase() === 'a') return word.slice(0, i) + (char === 'A' ? 'Ă' : 'ă') + word.slice(i+1);
-                if (getBaseChar(char).toLowerCase() === 'o') return word.slice(0, i) + (char === 'O' ? 'Ơ' : 'ơ') + word.slice(i+1);
-                if (getBaseChar(char).toLowerCase() === 'u') return word.slice(0, i) + (char === 'U' ? 'Ư' : 'ư') + word.slice(i+1);
+    }
+    
+    if (method === 'telex' && lowerKey === 'w') {
+        for (let i = word.length - 1; i >= 0; i--) {
+            const char = getBaseChar(word[i]).toLowerCase();
+            if (char === 'a' || char === 'o' || char === 'u') {
+                const newChar = (char === 'a') ? 'ă' : (char === 'o') ? 'ơ' : 'ư';
+                const isUpper = word[i] === word[i].toUpperCase();
+                return word.substring(0, i) + (isUpper ? newChar.toUpperCase() : newChar) + word.substring(i + 1);
             }
         }
     }
 
-    // 2. Handle Tones
-    const toneKey = (method === 'telex') ? Object.keys(TONE_KEYS).find(k => k === lowerKey) : Object.keys(VNI_TONES).find(k => k === lowerKey);
-    if (toneKey) {
-        const vowelPos = findVowelForTone(word);
+    // STEP 2: Tone Application
+    const tone_map = method === 'telex' ? TELEX_TONES : VNI_TONES;
+    const toneName = tone_map[lowerKey];
+    if (toneName) {
+        const vowelPos = findVowelToApplyTone(word);
         if (vowelPos === -1) return word + key;
 
         const charToTransform = word[vowelPos];
         const baseChar = getBaseChar(charToTransform);
-        const toneName = (method === 'telex') ? toneKey : Object.keys(TONE_KEYS)[VNI_TONES[toneKey]];
+        const toneKeyForMap = Object.keys(TELEX_TONES).find(k => TELEX_TONES[k] === toneName);
 
-        // Remove tone if key is 'z'/'0' or same tone is applied again
-        if (toneName === 'z' || (BASE_TO_CHAR[baseChar.toLowerCase()] && BASE_TO_CHAR[baseChar.toLowerCase()][toneName] === charToTransform.toLowerCase())) {
-            return word.substring(0, vowelPos) + baseChar + word.substring(vowelPos + 1);
+        if (toneName === 'reset' || (BASE_TO_CHAR[baseChar.toLowerCase()] && BASE_TO_CHAR[baseChar.toLowerCase()][toneKeyForMap] === charToTransform.toLowerCase())) {
+            return word.substring(0, vowelPos) + (charToTransform === baseChar.toUpperCase() ? baseChar.toUpperCase() : baseChar) + word.substring(vowelPos + 1);
         }
 
-        // Apply new tone
-        const newCharObject = BASE_TO_CHAR[baseChar.toLowerCase()];
-        if (newCharObject && newCharObject[toneName]) {
-            const newChar = newCharObject[toneName];
-            return word.substring(0, vowelPos) + (charToTransform === baseChar.toUpperCase() ? newChar.toUpperCase() : newChar) + word.substring(vowelPos + 1);
+        if (BASE_TO_CHAR[baseChar.toLowerCase()] && BASE_TO_CHAR[baseChar.toLowerCase()][toneKeyForMap]) {
+            const newChar = BASE_TO_CHAR[baseChar.toLowerCase()][toneKeyForMap];
+            const finalChar = charToTransform === charToTransform.toUpperCase() ? newChar.toUpperCase() : newChar;
+            return word.substring(0, vowelPos) + finalChar + word.substring(vowelPos + 1);
         }
     }
-
-    // 3. No rules matched, append character
+    
     return word + key;
 }
