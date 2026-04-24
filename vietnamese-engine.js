@@ -21,195 +21,170 @@ VOWEL_TPL.forEach((arr, i) =>
     })
 );
 
-const TELEX_TONE = { s:1, f:2, r:3, x:4, j:5 };
-const VNI_TONE = { "1":1, "2":2, "3":3, "4":4, "5":5 };
+const TELEX_TONE = { s: 1, f: 2, r: 3, x: 4, j: 5 };
+const VNI_TONE = { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 };
 
 const ALL_VOWELS = "aăâeêioôơuưy";
 
 /* =========================
-   IME CORE (STATE MACHINE)
+   BACKSPACE SAFE
 ========================= */
-class VietIME {
-    constructor(style = "Telex") {
-        this.style = style;
-        this.buffer = "";
-    }
+function handleBackspace(word) {
+    return word ? word.slice(0, -1) : "";
+}
 
-    setStyle(style) {
-        this.style = style;
-    }
+/* =========================
+   FIND VOWEL (UNIKEY STYLE FIXED)
+========================= */
+function findToneVowel(word) {
+    const w = word.toLowerCase();
 
-    reset() {
-        this.buffer = "";
-    }
-
-    input(key) {
-        const k = key.toLowerCase();
-
-        // ================= BACKSPACE =================
-        if (k === "backspace") {
-            this.buffer = this.buffer.slice(0, -1);
-            return this.render();
+    let vowels = [];
+    for (let i = 0; i < w.length; i++) {
+        if (ALL_VOWELS.includes(w[i])) {
+            vowels.push({ char: w[i], index: i });
         }
-
-        this.buffer += key;
-        return this.render();
     }
 
-    /* =========================
-       RENDER (SOURCE OF TRUTH)
-    ========================= */
-    render() {
-        let word = this.buffer;
+    if (!vowels.length) return -1;
 
-        if (!word) return "";
+    // ưu tiên ê
+    const e = vowels.find(v => v.char === "ê");
+    if (e) return e.index;
 
-        if (this.style === "Telex") {
-            word = this.applyTelex(word);
-        } else {
-            word = this.applyVNI(word);
+    // FIX: ươ detection chuẩn
+    for (let i = 0; i < w.length - 1; i++) {
+        if (w[i] === "u" && w[i + 1] === "ơ") {
+            return i + 1;
         }
-
-        return word;
     }
 
-    /* =========================
-       TELEX ENGINE
-    ========================= */
-    applyTelex(word) {
+    let main = [...vowels];
 
-        // dd -> đ
-        word = word.replace(/dd/g, "đ");
-
-        // aa ee oo (toggle safe)
-        word = word
-            .replace(/aa/g, "â")
-            .replace(/âa/g, "a")
-            .replace(/ee/g, "ê")
-            .replace(/êe/g, "e")
-            .replace(/oo/g, "ô")
-            .replace(/ôo/g, "o");
-
-        // w transforms
-        word = word
-            .replace(/aw/g, "ă")
-            .replace(/ăw/g, "a")
-            .replace(/ow/g, "ơ")
-            .replace(/ơw/g, "o")
-            .replace(/uw/g, "ư")
-            .replace(/ưw/g, "u");
-
-        // tone last (IMPORTANT FIX)
-        word = this.applyTone(word, TELEX_TONE);
-
-        return word;
+    if ((w.startsWith("qu") || w.startsWith("gi")) && main.length > 1) {
+        main.shift();
     }
 
-    /* =========================
-       VNI ENGINE
-    ========================= */
-    applyVNI(word) {
+    if (main.length === 1) return main[0].index;
 
-        const map = {
-            dd: "đ",
-            a7: "â",
-            a8: "ă",
-            e7: "ê",
-            o7: "ô",
-            o8: "ơ",
-            u8: "ư"
-        };
+    const last = main[main.length - 1];
+    const prev = main[main.length - 2];
 
-        word = word.replace(/dd|a7|a8|e7|o7|o8|u8/g, m => map[m]);
+    const lastIsVowel = ALL_VOWELS.includes(w[w.length - 1]);
+    if (!lastIsVowel) return last.index;
 
-        word = this.applyTone(word, VNI_TONE);
+    const cluster = prev.char + last.char;
 
-        return word;
+    if (["oa", "oe", "uy", "ue", "uê"].includes(cluster)) {
+        return last.index;
     }
 
-    /* =========================
-       TONE ENGINE (UNIKEY STYLE)
-    ========================= */
-    applyTone(word, toneMap) {
+    return prev.index;
+}
 
-        let tone = 0;
-        let tonePos = -1;
+/* =========================
+   APPLY TONE (UNIKEY CORE)
+========================= */
+function applyTone(word, toneMap) {
 
-        for (let i = word.length - 1; i >= 0; i--) {
-            const c = word[i].toLowerCase();
-            if (toneMap[c] !== undefined) {
-                tone = toneMap[c];
-                tonePos = i;
-                break;
-            }
+    let tone = 0;
+    let tonePos = -1;
+
+    for (let i = word.length - 1; i >= 0; i--) {
+        const c = word[i].toLowerCase();
+        if (toneMap[c] !== undefined) {
+            tone = toneMap[c];
+            tonePos = i;
+            break;
         }
-
-        if (tonePos === -1) return word;
-
-        const clean = word.slice(0, tonePos);
-
-        const idx = this.findToneVowel(clean);
-        if (idx === -1) return word;
-
-        const ch = clean[idx];
-        const info = VOWEL_MAP[ch.toLowerCase()];
-        if (!info) return word;
-
-        const newChar = VOWEL_TPL[info.baseIdx][tone];
-
-        return (
-            clean.slice(0, idx) +
-            (ch === ch.toLowerCase() ? newChar : newChar.toUpperCase()) +
-            clean.slice(idx + 1)
-        );
     }
 
-    /* =========================
-       FIXED VOWEL SELECTION
-    ========================= */
-    findToneVowel(word) {
-        const w = word.toLowerCase();
+    if (tonePos === -1) return word;
 
-        let vowels = [];
-        for (let i = 0; i < w.length; i++) {
-            if (ALL_VOWELS.includes(w[i])) {
-                vowels.push({ char: w[i], index: i });
-            }
-        }
+    const clean = word.slice(0, tonePos);
 
-        if (!vowels.length) return -1;
+    const idx = findToneVowel(clean);
+    if (idx === -1) return word;
 
-        // ưu tiên ê
-        const e = vowels.find(v => v.char === "ê");
-        if (e) return e.index;
+    const ch = clean[idx];
+    const info = VOWEL_MAP[ch.toLowerCase()];
+    if (!info) return word;
 
-        // FIX: detect "ươ" chuẩn
-        for (let i = 0; i < w.length - 1; i++) {
-            if (w[i] === "u" && w[i + 1] === "ơ") {
-                return i + 1;
-            }
-        }
+    const newChar = VOWEL_TPL[info.baseIdx][tone];
 
-        let main = [...vowels];
+    return (
+        clean.slice(0, idx) +
+        (ch === ch.toLowerCase() ? newChar : newChar.toUpperCase()) +
+        clean.slice(idx + 1)
+    );
+}
 
-        if ((w.startsWith("qu") || w.startsWith("gi")) && main.length > 1) {
-            main.shift();
-        }
+/* =========================
+   TELEX ENGINE
+========================= */
+function applyTelex(word) {
 
-        if (main.length === 1) return main[0].index;
+    // dd -> đ
+    word = word.replace(/dd/g, "đ");
 
-        const last = main[main.length - 1];
-        const prev = main[main.length - 2];
+    // double vowels
+    word = word
+        .replace(/aa/g, "â")
+        .replace(/âa/g, "a")
+        .replace(/ee/g, "ê")
+        .replace(/êe/g, "e")
+        .replace(/oo/g, "ô")
+        .replace(/ôo/g, "o");
 
-        const lastIsVowel = ALL_VOWELS.includes(w[w.length - 1]);
-        if (!lastIsVowel) return last.index;
+    // w transforms
+    word = word
+        .replace(/aw/g, "ă")
+        .replace(/ăw/g, "a")
+        .replace(/ow/g, "ơ")
+        .replace(/ơw/g, "o")
+        .replace(/uw/g, "ư")
+        .replace(/ưw/g, "u");
 
-        const cluster = prev.char + last.char;
+    return applyTone(word, TELEX_TONE);
+}
 
-        if (["oa", "oe", "uy", "ue", "uê"].includes(cluster)) {
-            return last.index;
-        }
+/* =========================
+   VNI ENGINE
+========================= */
+function applyVNI(word) {
 
-        return prev.index;
+    const map = {
+        dd: "đ",
+        a7: "â",
+        a8: "ă",
+        e7: "ê",
+        o7: "ô",
+        o8: "ơ",
+        u8: "ư"
+    };
+
+    word = word.replace(/dd|a7|a8|e7|o7|o8|u8/g, m => map[m]);
+
+    return applyTone(word, VNI_TONE);
+}
+
+/* =========================
+   MAIN FUNCTION (IMPORTANT)
+========================= */
+function processKeyEvent(key, word, style) {
+
+    const k = key.toLowerCase();
+
+    // BACKSPACE FIX
+    if (k === "backspace") {
+        return handleBackspace(word);
     }
+
+    let newWord = word + key;
+
+    if (style === "Telex") {
+        return applyTelex(newWord);
+    }
+
+    return applyVNI(newWord);
 }
