@@ -1,45 +1,43 @@
-const mainSettingsForm = document.forms.mainSettings;
-const controlPanelForm = document.querySelector('.settings-group legend:first-of-type').parentElement;
+document.addEventListener('DOMContentLoaded', () => {
+  const mainSettingsForm = document.forms.mainSettings;
+  const saveButton = document.getElementById('save-button');
+  const statusMessage = document.getElementById('status-message');
 
-// Load settings and update the form
-function loadSettings() {
-  chrome.storage.sync.get([
-    'typingStyle',
-    'smartTyping',
-    'vietnameseEnabled',
-    'accentPlacement'
-  ], (data) => {
-    // Main settings
-    mainSettingsForm.elements['typing-style'].value = data.typingStyle || 'Telex';
-    mainSettingsForm.elements['smart-typing'].checked = data.smartTyping || false;
-    mainSettingsForm.elements['accent-placement'].value = data.accentPlacement || 'new';
+  // Load settings and update the form
+  function loadSettings() {
+    chrome.storage.sync.get([
+      'typingStyle',
+      'accentPlacement'
+    ], (data) => {
+      mainSettingsForm.elements['typing-style'].value = data.typingStyle || 'Telex';
+      mainSettingsForm.elements['accent-placement'].value = data.accentPlacement || 'new';
+    });
+  }
 
-    // Control panel
-    controlPanelForm.querySelector('input[name="enabled"]').checked = data.vietnameseEnabled === undefined ? true : data.vietnameseEnabled;
+  // Save settings when the button is clicked
+  function saveSettings(event) {
+    event.preventDefault(); // Prevent form from submitting
+    const typingStyle = mainSettingsForm.elements['typing-style'].value;
+    const accentPlacement = mainSettingsForm.elements['accent-placement'].value;
+
+    chrome.storage.sync.set({
+      typingStyle,
+      accentPlacement
+    }, () => {
+      // Display a success message and clear it after a few seconds
+      statusMessage.textContent = 'Đã lưu cài đặt!';
+      setTimeout(() => {
+        statusMessage.textContent = '';
+      }, 3000);
+    });
+  }
+
+  loadSettings();
+  saveButton.addEventListener('click', saveSettings);
+
+  // Link to manage extensions
+  document.getElementById('console-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    chrome.tabs.create({ url: 'chrome://extensions' });
   });
-}
-
-// Save settings when the form changes
-function saveSettings() {
-  const typingStyle = mainSettingsForm.elements['typing-style'].value;
-  const smartTyping = mainSettingsForm.elements['smart-typing'].checked;
-  const accentPlacement = mainSettingsForm.elements['accent-placement'].value;
-  const vietnameseEnabled = controlPanelForm.querySelector('input[name="enabled"]').checked;
-
-  chrome.storage.sync.set({
-    typingStyle,
-    smartTyping,
-    accentPlacement,
-    vietnameseEnabled
-  });
-}
-
-// Event Listeners
-document.addEventListener('DOMContentLoaded', loadSettings);
-mainSettingsForm.addEventListener('change', saveSettings);
-controlPanelForm.addEventListener('change', saveSettings);
-
-document.getElementById('console-link').addEventListener('click', (event) => {
-  event.preventDefault();
-  chrome.tabs.create({ url: 'chrome://extensions' });
 });
