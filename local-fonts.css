@@ -1,0 +1,47 @@
+/*
+  To make the fonts work offline, please follow these steps:
+
+  1. Go to https://google-webfonts-helper.herokuapp.com/fonts/roboto?subsets=vietnamese,latin-ext,latin
+  2. Select the 400, 500, and 700 styles.
+  3. Under "4. Copy CSS", select "Best Support".
+  4. Under "Customize folder prefix (optional)", change the path from "../fonts/" to "fonts/".
+  5. Download the .zip file and extract it.
+  6. Place the extracted 'fonts' folder in the root of your project.
+
+  The file structure should look like this:
+  .
+  ├── fonts
+  │   ├── roboto-v30-vietnamese_latin-ext_latin-400.woff
+  │   ├── roboto-v30-vietnamese_latin-ext_latin-400.woff2
+  │   ├── ... (and so on for other weights)
+  ├── options.html
+  └── local-fonts.css
+*/
+
+/* roboto-regular - vietnamese_latin-ext_latin */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: local(''),
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-regular.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-regular.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+}
+/* roboto-500 - vietnamese_latin-ext_latin */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 500;
+  src: local(''),
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-500.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-500.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+}
+/* roboto-700 - vietnamese_latin-ext_latin */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 700;
+  src: local(''),
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-700.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
+       url('fonts/roboto-v30-vietnamese_latin-ext_latin-700.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+}

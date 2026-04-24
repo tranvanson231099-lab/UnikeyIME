@@ -7,12 +7,21 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
     body {
       font-family: 'Roboto', sans-serif;
       background-color: #f7f9fc;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
       width: 420px;
       padding: 20px;
-      color: #333;
     }
     h1 {
       font-size: 1.5em;
@@ -64,42 +73,43 @@
   </style>
 </head>
 <body>
-  <h1>Cài đặt Unikey (Unikey Settings)</h1>
+  <div class="container">
+    <h1>Cài đặt Unikey (Unikey Settings)</h1>
 
-  <div class="settings-group">
-    <legend>Bảng điều khiển (Control Panel)</legend>
-    <label>
-      <input type="checkbox" name="enabled" checked>
-      Bật/Tắt gõ tiếng Việt (Enable/Disable Vietnamese)
-    </label>
-  </div>
-
-  <form name="mainSettings">
     <div class="settings-group">
-      <legend>Kiểu gõ (Typing Method)</legend>
+      <legend>Bảng điều khiển (Control Panel)</legend>
       <label>
-        <input type="radio" name="typing-style" value="Telex" checked>
-        Telex
-      </label>
-      <label>
-        <input type="radio" name="typing-style" value="VNI">
-        VNI
+        <input type="checkbox" name="enabled" checked>
+        Bật/Tắt gõ tiếng Việt (Enable/Disable Vietnamese)
       </label>
     </div>
 
-    <div class="settings-group">
-      <legend>Tùy chọn khác (Other Options)</legend>
-      <label>
-        <input type="checkbox" name="smart-typing">
-        Gõ thông minh (Smart Typing)
-      </label>
+    <form name="mainSettings">
+      <div class="settings-group">
+        <legend>Kiểu gõ (Typing Method)</legend>
+        <label>
+          <input type="radio" name="typing-style" value="Telex" checked>
+          Telex
+        </label>
+        <label>
+          <input type="radio" name="typing-style" value="VNI">
+          VNI
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <legend>Tùy chọn khác (Other Options)</legend>
+        <label>
+          <input type="checkbox" name="smart-typing">
+          Gõ thông minh (Smart Typing)
+        </label>
+      </div>
+    </form>
+
+    <div class="footer">
+      <a href="#" id="console-link">Quản lý tiện ích (Manage Extension)</a>
     </div>
-  </form>
-
-  <div class="footer">
-    <a href="#" id="console-link">Quản lý tiện ích (Manage Extension)</a>
   </div>
-
   <script src="options.js"></script>
 </body>
 </html>
