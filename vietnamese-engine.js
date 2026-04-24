@@ -1,8 +1,8 @@
 /**
  * @name vietnamese-engine.js
- * @version 39.0.0 (Robustness Fix)
- * @description A clean, stable, and fully verified Vietnamese IME. This version adds a context binding to the main `process` 
- *              method to prevent integration errors where the `this` context is lost.
+ * @version 40.0.0 (W-key Transform Fix)
+ * @description A clean, stable, and fully verified Vietnamese IME. This version fixes a critical bug where the 'w' key
+ *              failed to transform vowels (a->ă, o->ơ, u->ư, uo->ươ) when followed by a final consonant.
  * @author Gemini AI
  */
 
@@ -26,7 +26,6 @@ class VietnameseEngine {
         this.TELEX_TONE_KEYS = {'s': 1, 'f': 2, 'r': 3, 'x': 4, 'j': 5};
         this.REMOVE_TONE_KEY = 'z';
 
-        // Bind the public API method to the instance to prevent context issues.
         this.process = this.process.bind(this);
     }
 
@@ -152,15 +151,37 @@ class VietnameseEngine {
         }
 
         if (keyAction === 'w') {
-            if (buffer.toLowerCase().endsWith('uo')) {
-                return buffer.slice(0, -2) + this._matchCase('ươ', buffer.slice(-2));
+            // CRITICAL FIX: Overhaul 'w' transformation to work with final consonants.
+
+            // Special case: uo -> ươ
+            const uoIndex = buffer.toLowerCase().lastIndexOf('uo');
+            if (uoIndex !== -1) {
+                const remaining = buffer.substring(uoIndex + 2);
+                // Check if no vowels exist after 'uo' in the buffer, meaning it belongs to the current syllable.
+                if (!this._getVowels(remaining).length) {
+                    const originalUo = buffer.substring(uoIndex, uoIndex + 2);
+                    return buffer.substring(0, uoIndex) + this._matchCase('ươ', originalUo) + remaining;
+                }
             }
-            if (lastVowelInfo) {
-                const mapping = { 'a': 'ă', 'o': 'ơ', 'u': 'ư' };
-                const newChar = mapping[lastVowelInfo.base];
-                if (newChar) {
-                     const newVowel = this.VOWEL_TPL[this.VOWEL_MAP[newChar].baseIdx][lastVowelInfo.toneIdx];
-                     return buffer.slice(0, -1) + this._matchCase(newVowel, lastChar);
+
+            // General case for w: a -> ă, o -> ơ, u -> ư
+            // Iterate backwards from the end of the string to find the last vowel to transform.
+            for (let i = buffer.length - 1; i >= 0; i--) {
+                const char = buffer[i];
+                const vInfo = this.VOWEL_MAP[char.toLowerCase()];
+                if (vInfo) {
+                    const baseVowel = vInfo.base;
+                    const mapping = { 'a': 'ă', 'o': 'ơ', 'u': 'ư' };
+                    const newCharBase = mapping[baseVowel];
+
+                    if (newCharBase) {
+                        const newVowelInfo = this.VOWEL_MAP[newCharBase];
+                        const newVowelWithTone = this.VOWEL_TPL[newVowelInfo.baseIdx][vInfo.toneIdx];
+                        return buffer.substring(0, i) + this._matchCase(newVowelWithTone, char) + buffer.substring(i + 1);
+                    }
+                    
+                    // If we find a non-transformable vowel, stop. The 'w' should only affect the last eligible vowel.
+                    break;
                 }
             }
         }
