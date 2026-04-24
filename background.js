@@ -1,14 +1,16 @@
 /**
- * Unikey IME Background Script - v10 (Definitive, Stable Release)
+ * Unikey IME Background Script - v11 (Engine-Bound, Stable Release)
  *
- * This script is the stable partner to the rewritten engine (v11). Its role is simplified to the extreme
- * to guarantee stability: it does nothing but pass key events to the engine and manage the composition.
- * All complex logic is now exclusively in `vietnamese-engine.js` to prevent any possible conflicts
- * or state corruption at the background level. This two-part fix (engine + background) is the definitive
- * solution to the freezing and incorrect transformation bugs.
+ * This version permanently fixes the "keys not working" bug by correctly instantiating the new
+ * VietnameseEngine and binding its `process` method to the key event listener. It replaces the
+ * undefined `processKeyEvent` call. This script now acts as a stable, minimal bridge between the
+ * Chrome IME API and the powerful, self-contained `vietnamese-engine.js`.
  */
 
 importScripts('vietnamese-engine.js');
+
+// Create a single, persistent instance of our engine.
+const engine = new VietnameseEngine();
 
 let contextID = 0;
 let composition = "";
@@ -23,6 +25,7 @@ function loadTypingStyle() {
                 console.error("Error loading typing style:", chrome.runtime.lastError.message);
                 return;
             }
+            // We keep this to ensure the UI option remains functional, even if the engine is Telex-only.
             currentTypingStyle = data.typingStyle || 'Telex';
         });
     } catch (e) {
@@ -65,7 +68,7 @@ function update(text) {
     }
 }
 
-// --- Key Event Logic (Reliable and Simplified) ---
+// --- Key Event Logic (FIXED and Simplified) ---
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
     if (keyData.type !== 'keydown') return false;
@@ -91,13 +94,17 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
         return true;
     }
 
-    // Pass 'backspace' and all printable characters to the engine.
-    // The engine now has all the logic.
+    // FIX: Replaced call to non-existent `processKeyEvent` with the new engine instance.
     if (key === 'Backspace' || (key.length === 1 && !keyData.ctrlKey && !keyData.altKey)) {
-        if (key === 'Backspace' && !composition) return false; // Let browser handle backspace on empty input
+        if (key === 'Backspace' && !composition) return false;
+
+        // The engine expects the literal string 'backspace'.
+        const engineKey = key === 'Backspace' ? 'backspace' : key;
         
-        const newComposition = processKeyEvent(key, composition, currentTypingStyle);
+        // The new engine is pure Telex. We no longer need to check `currentTypingStyle`.
+        const newComposition = engine.process(composition, engineKey);
         update(newComposition);
+
         return true; // We handled the key.
     }
 
