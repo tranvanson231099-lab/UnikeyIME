@@ -1,0 +1,29 @@
+{
+  "name": "My Vietnamese IME",
+  "version": "1.0",
+  "manifest_version": 3,
+  "permissions": [
+    "input",
+    "storage"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "input_components": [
+    {
+      "name": "My Vietnamese IME",
+      "type": "ime",
+      "id": "vietnamese_ime",
+      "description": "My Vietnamese IME for ChromeOS",
+      "language": "vi",
+      "layouts": ["us"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [ "engine.wasm" ],
+      "matches": [ "<all_urls>" ]
+    }
+  ]
+}
