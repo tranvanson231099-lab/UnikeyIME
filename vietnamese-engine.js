@@ -1,8 +1,8 @@
 /**
  * @name vietnamese-engine.js
- * @version 38.0.0 (Production Ready)
- * @description A clean, stable, and fully verified Vietnamese IME using the Telex method. This production-ready version
- *              has all test code removed.
+ * @version 39.0.0 (Robustness Fix)
+ * @description A clean, stable, and fully verified Vietnamese IME. This version adds a context binding to the main `process` 
+ *              method to prevent integration errors where the `this` context is lost.
  * @author Gemini AI
  */
 
@@ -25,6 +25,9 @@ class VietnameseEngine {
         this.CONSONANTS = 'bcdfghjklmnpqrstvx';
         this.TELEX_TONE_KEYS = {'s': 1, 'f': 2, 'r': 3, 'x': 4, 'j': 5};
         this.REMOVE_TONE_KEY = 'z';
+
+        // Bind the public API method to the instance to prevent context issues.
+        this.process = this.process.bind(this);
     }
 
     // --- SECTION 2: PUBLIC API ---
