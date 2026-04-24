@@ -1,10 +1,10 @@
 /**
- * Unikey IME Background Script - v6 (Multi-Engine Support)
+ * Unikey IME Background Script - v7 (Stable Multi-Engine)
  *
- * This version introduces multi-engine capability. It now does the following:
- * 1. Loads the user-defined typing style (Telex or VNI) from `chrome.storage`.
- * 2. Listens for changes to the settings and updates the typing style on the fly.
- * 3. Passes the current typing style to the vietnamese-engine for processing.
+ * This version fixes a critical state management bug from v6 that caused the
+ * composition state to not update correctly, making both Telex and VNI fail.
+ * The logic is now restored to a stable model where every valid key press
+ * correctly updates the composition.
  */
 
 importScripts('vietnamese-engine.js');
@@ -15,21 +15,19 @@ let currentTypingStyle = 'Telex'; // Default typing style
 
 // --- Settings Management ---
 
-// Load the typing style from storage when the script starts
 function loadTypingStyle() {
     chrome.storage.sync.get('typingStyle', (data) => {
         currentTypingStyle = data.typingStyle || 'Telex';
     });
 }
 
-// Listen for changes in settings (e.g., from the options page)
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'sync' && changes.typingStyle) {
         currentTypingStyle = changes.typingStyle.newValue || 'Telex';
     }
 });
 
-// --- Core Handlers (Unchanged) ---
+// --- Core IME Handlers ---
 
 chrome.input.ime.onFocus.addListener(ctx => {
     contextID = ctx.contextID;
@@ -65,19 +63,20 @@ function cancelComposition() {
     }
 }
 
-// --- Key Event Logic ---
+// --- Key Event Logic (Corrected) ---
 
 chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
     if (keyData.type !== 'keydown') return false;
 
     const key = keyData.key;
 
+    // Handle non-printable keys first
     if (key === 'Escape' || key === 'Delete') {
         if (composition) {
             cancelComposition();
-            return true;
+            return true; // We handled the key
         }
-        return false;
+        return false; // No composition, let the browser handle it
     }
 
     if (key === 'Enter') {
@@ -91,19 +90,23 @@ chrome.input.ime.onKeyEvent.addListener((engineID, keyData) => {
         commit(composition + ' ');
         return true;
     }
-    
-    // Pass the key and the *current typing style* to the engine
-    const newComposition = processKeyEvent(key, composition, currentTypingStyle);
-    
-    // If the engine returns a different result, update the composition.
-    // If it returns the same, it means the key was not handled, so we let the system handle it.
-    if (newComposition !== composition + key) {
+
+    if (key === 'Backspace') {
+        if (!composition) return false; // Let system handle backspace on empty composition
+        const newComposition = processKeyEvent('backspace', composition, currentTypingStyle);
         update(newComposition);
         return true;
     }
 
-    // The engine did not handle the key, let the browser do its thing.
-    // This is important for keys like Backspace when the composition is empty.
+    // Handle printable characters: This is the corrected logic.
+    // Any single character that is not a control character will be processed.
+    if (key.length === 1 && !keyData.ctrlKey && !keyData.altKey) {
+        const newComposition = processKeyEvent(key, composition, currentTypingStyle);
+        update(newComposition);
+        return true; // We always handle printable keys to maintain state
+    }
+
+    // Let the system handle anything else (Arrow keys, Tab, etc.)
     return false;
 });
 
