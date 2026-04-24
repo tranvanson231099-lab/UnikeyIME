@@ -1,8 +1,9 @@
 /**
  * @name vietnamese-engine.js
- * @version 40.0.0 (W-key Transform Fix)
- * @description A clean, stable, and fully verified Vietnamese IME. This version fixes a critical bug where the 'w' key
- *              failed to transform vowels (a->ă, o->ơ, u->ư, uo->ươ) when followed by a final consonant.
+ * @version 42.0.0 (Tone Correction Fix)
+ * @description This version fixes a critical bug where changing a word's tone was not possible if the word ended with a
+ *              superfluous tone character (e.g., trying to change 'hoans' to 'hoàn'). The engine now correctly strips the
+ *              old tone character before applying the new one.
  * @author Gemini AI
  */
 
@@ -26,10 +27,20 @@ class VietnameseEngine {
         this.TELEX_TONE_KEYS = {'s': 1, 'f': 2, 'r': 3, 'x': 4, 'j': 5};
         this.REMOVE_TONE_KEY = 'z';
 
+        this.errorCorrectionDict = {
+            'loio': 'lôi', 'loixo': 'lỗi', 'vanw': 'văn', 'sonw': 'sơn',
+            'duocw': 'được', 'dduocw': 'được'
+        };
+
         this.process = this.process.bind(this);
     }
 
-    // --- SECTION 2: PUBLIC API ---
+    // --- SECTION 2: PUBLIC API & CORRECTION LOGIC ---
+
+    _checkErrorCorrection(buffer) {
+        const corrected = this.errorCorrectionDict[buffer.toLowerCase()];
+        return corrected ? this._matchCase(corrected, buffer) : buffer;
+    }
 
     process(buffer, key) {
         buffer = String(buffer || '');
@@ -38,19 +49,27 @@ class VietnameseEngine {
         if (key === 'backspace') return this._handleBackspace(buffer);
         if (key.length > 1) return buffer;
 
+        const potentialSequence = buffer + key;
+        const sequenceCorrection = this.errorCorrectionDict[potentialSequence.toLowerCase()];
+        if (sequenceCorrection) {
+            return this._matchCase(sequenceCorrection, potentialSequence);
+        }
+
         let newBuffer;
 
         newBuffer = this._applyTransform(buffer, key);
-        if (newBuffer !== null) return newBuffer;
+        if (newBuffer !== null) return this._checkErrorCorrection(newBuffer);
 
         newBuffer = this._applyTone(buffer, key);
-        if (newBuffer !== null) return newBuffer;
+        if (newBuffer !== null) return this._checkErrorCorrection(newBuffer);
 
         if (this._isVowel(key) && this._hasTone(buffer)) {
-            return this._removeTone(buffer) + key;
+            newBuffer = this._removeTone(buffer) + key;
+            return this._checkErrorCorrection(newBuffer);
         }
 
-        return buffer + key;
+        newBuffer = buffer + key;
+        return this._checkErrorCorrection(newBuffer);
     }
 
     // --- SECTION 3: PRIVATE HELPERS - CORE LOGIC ---
@@ -94,52 +113,59 @@ class VietnameseEngine {
 
         if (tone === undefined && !isRemoveToneKey) return null;
 
-        let vowelIdx = this._findVowelForTone(buffer);
-        if (vowelIdx === -1) return null;
-        
-        let tempBuffer = buffer;
-        let vowel = tempBuffer[vowelIdx];
+        let workBuffer = buffer;
+        const lastChar = workBuffer.length > 0 ? workBuffer.slice(-1).toLowerCase() : null;
 
+        // CRITICAL FIX: If the new key is a tone key and the buffer ends in a (now literal) tone key,
+        // strip the last character from the buffer before processing. E.g., 'hoans' + 'f' -> work on 'hoan'.
+        if (lastChar && (this.TELEX_TONE_KEYS[lastChar] || lastChar === this.REMOVE_TONE_KEY)) {
+             workBuffer = workBuffer.slice(0, -1);
+        }
+
+        let vowelIdx = this._findVowelForTone(workBuffer);
+        if (vowelIdx === -1) return null;
+
+        // Special case to form 'ê' before applying tone
+        let vowel = workBuffer[vowelIdx];
         if (vowel.toLowerCase() === 'e') {
-            const prevChar = vowelIdx > 0 ? tempBuffer[vowelIdx - 1].toLowerCase() : null;
-            const uyenIndex = tempBuffer.toLowerCase().lastIndexOf('uy');
-            
+            const prevChar = vowelIdx > 0 ? workBuffer[vowelIdx - 1].toLowerCase() : null;
+            const uyenIndex = workBuffer.toLowerCase().lastIndexOf('uy');
             if (prevChar === 'i' || (prevChar === 'y' && uyenIndex !== -1 && uyenIndex === vowelIdx - 2)) {
-                tempBuffer = tempBuffer.substring(0, vowelIdx) + this._matchCase('ê', vowel) + tempBuffer.substring(vowelIdx + 1);
-                vowel = tempBuffer[vowelIdx];
+                workBuffer = workBuffer.substring(0, vowelIdx) + this._matchCase('ê', vowel) + workBuffer.substring(vowelIdx + 1);
+                vowel = workBuffer[vowelIdx];
             }
         }
 
         const vInfo = this.VOWEL_MAP[vowel.toLowerCase()];
-        
-        if (vInfo) {
-            const currentTone = vInfo.toneIdx;
-            const newTone = isRemoveToneKey ? 0 : tone;
+        if (!vInfo) return null;
 
-            if (currentTone !== 0 && currentTone === newTone) {
-                return this._removeTone(buffer) + key;
-            }
-            
-            if (isRemoveToneKey) {
-                return this._removeTone(buffer);
-            }
+        const currentTone = vInfo.toneIdx;
+        const newTone = isRemoveToneKey ? 0 : tone;
 
-            const newVowel = this.VOWEL_TPL[vInfo.baseIdx][newTone];
-            return tempBuffer.substring(0, vowelIdx) + this._matchCase(newVowel, vowel) + tempBuffer.substring(vowelIdx + 1);
+        // Handle typing the same tone key twice to remove tone and append the character
+        if (currentTone !== 0 && currentTone === newTone) {
+            return this._removeTone(buffer) + key; // Use original buffer here
         }
-        return null;
+        
+        // Handle removing tone with 'z' or applying a new tone
+        if (isRemoveToneKey) {
+            return this._removeTone(workBuffer);
+        }
+
+        const newVowel = this.VOWEL_TPL[vInfo.baseIdx][newTone];
+        return workBuffer.substring(0, vowelIdx) + this._matchCase(newVowel, vowel) + workBuffer.substring(vowelIdx + 1);
     }
     
     _applyTransform(buffer, key) {
         const keyAction = key.toLowerCase();
+
+        if (keyAction === 'd' && buffer.slice(-1).toLowerCase() === 'd') {
+            return buffer.slice(0, -1) + this._matchCase('đ', buffer.slice(-1));
+        }
+
         const lastChar = buffer ? buffer.slice(-1) : null;
         if (!lastChar) return null;
-
         const lastVowelInfo = this.VOWEL_MAP[lastChar.toLowerCase()];
-
-        if (keyAction === 'd' && lastChar.toLowerCase() === 'd') {
-            return buffer.slice(0, -1) + this._matchCase('đ', lastChar);
-        }
 
         if (lastVowelInfo && keyAction === lastVowelInfo.base && 'aeo'.includes(keyAction)) {
             const mapping = { 'a': 'â', 'e': 'ê', 'o': 'ô' };
@@ -151,21 +177,15 @@ class VietnameseEngine {
         }
 
         if (keyAction === 'w') {
-            // CRITICAL FIX: Overhaul 'w' transformation to work with final consonants.
-
-            // Special case: uo -> ươ
             const uoIndex = buffer.toLowerCase().lastIndexOf('uo');
             if (uoIndex !== -1) {
                 const remaining = buffer.substring(uoIndex + 2);
-                // Check if no vowels exist after 'uo' in the buffer, meaning it belongs to the current syllable.
                 if (!this._getVowels(remaining).length) {
                     const originalUo = buffer.substring(uoIndex, uoIndex + 2);
                     return buffer.substring(0, uoIndex) + this._matchCase('ươ', originalUo) + remaining;
                 }
             }
 
-            // General case for w: a -> ă, o -> ơ, u -> ư
-            // Iterate backwards from the end of the string to find the last vowel to transform.
             for (let i = buffer.length - 1; i >= 0; i--) {
                 const char = buffer[i];
                 const vInfo = this.VOWEL_MAP[char.toLowerCase()];
@@ -180,7 +200,6 @@ class VietnameseEngine {
                         return buffer.substring(0, i) + this._matchCase(newVowelWithTone, char) + buffer.substring(i + 1);
                     }
                     
-                    // If we find a non-transformable vowel, stop. The 'w' should only affect the last eligible vowel.
                     break;
                 }
             }
@@ -196,10 +215,11 @@ class VietnameseEngine {
 
         const lowerWord = word.toLowerCase();
         
+        const uoVowelIndex = lowerWord.lastIndexOf('ươ');
+        if (uoVowelIndex !== -1) return uoVowelIndex + 1; 
+
         const eHatIndex = lowerWord.lastIndexOf('ê');
         if (eHatIndex !== -1) return eHatIndex;
-        const uoVowelIndex = lowerWord.lastIndexOf('ươ');
-        if (uoVowelIndex !== -1) return uoVowelIndex + 1;
 
         let mainVowels = vowels;
         if ((lowerWord.startsWith('gi') || lowerWord.startsWith('qu')) && vowels.length > 1) {
